@@ -2,16 +2,21 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import type {User} from '../types/auth';
 
-
+interface User {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  avatar?: string | null;
+}
 
 interface ProfilePageProps {
   onLogout: () => void;
 }
 
 const baseUrl = "http://127.0.0.1:8000";
-const DEFAULT_AVATAR = "/download (1).jpeg";
+const DEFAULT_AVATAR = "/default-avatar.png";
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ onLogout }) => {
   const navigate = useNavigate();

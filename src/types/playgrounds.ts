@@ -9,7 +9,7 @@ export interface PlayGround {
   en_location: string;
   ar_location: string;
   price: number;
-  capicity: number;
+  capacity: number;
   is_closed: boolean;
   closed_from: string | null; // ISO date
   closed_until: string | null; // ISO date

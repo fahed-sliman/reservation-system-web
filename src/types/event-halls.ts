@@ -7,7 +7,7 @@ export interface EventHall {
   image: string | null;
   en_location: string;
   ar_location: string;
-  capicity: number;
+  capacity: number;
   price: number;
   is_closed: boolean;
   closed_from: string | null; // ISO date

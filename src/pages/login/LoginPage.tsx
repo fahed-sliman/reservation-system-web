@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import InputField from "../../components/InputsField";
-import PasswordField from "../../components/PasswordFieldProps";
+import InputField from "../../components/inputs/InputsField";
+import PasswordField from "../../components/inputs/PasswordFieldProps";
 import { FaGoogle } from "react-icons/fa";
 
 interface LoginPageProps {
@@ -97,11 +97,10 @@ const handleFakeGoogleLogin = () => {
   setTimeout(() => {
     setIsGoogleLoading(false);
     alert("Login with Google successfully");
-    navigate("/home"); // بعد نجاح تسجيل الدخول
+    navigate("/home");
   }, 2000);
 };
 
-  // Removed handleGoogleLogin and Firebase imports
 
   return (
     <div className="flex flex-col-reverse md:flex-row min-h-screen w-full bg-gray-950">

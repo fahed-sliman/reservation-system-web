@@ -6,15 +6,14 @@ import React, {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { RegisterRequest } from "../../types";
-import InputField from "../../components/InputsField";
-import PasswordField from "../../components/PasswordFieldProps";
+import InputField from "../../components/inputs/InputsField";
+import PasswordField from "../../components/inputs/PasswordFieldProps";
 
 interface Errors {
   firstName?: string;
   lastName?: string;
   email?: string;
   password?: string;
-  username?: string; // رسالة خاصة باسم المستخدم
 }
 
 const INITIAL_FORM_DATA: RegisterRequest = {
@@ -44,7 +43,7 @@ const RegistrationPage: React.FC = () => {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
 
-    setErrors((prev) => ({ ...prev, [name]: undefined, username: undefined }));
+    setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
   useEffect(() => {
@@ -57,7 +56,8 @@ const RegistrationPage: React.FC = () => {
     const newErrors: Errors = {};
     if (!formData.firstName.trim())
       newErrors.firstName = "First name is required.";
-    if (!formData.lastName.trim()) newErrors.lastName = "Last name is required.";
+    if (!formData.lastName.trim())
+      newErrors.lastName = "Last name is required.";
     if (!formData.email.trim()) newErrors.email = "Email is required.";
     else if (!/^\S+@\S+\.\S+$/.test(formData.email))
       newErrors.email = "Invalid email format.";
@@ -70,20 +70,13 @@ const RegistrationPage: React.FC = () => {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
     if (!validate()) return;
-
     setIsLoading(true);
-
-    // توليد اسم مستخدم تلقائي
-    const randomSuffix = Math.floor(Math.random() * 10000);
-    const generatedUsername = `${formData.firstName.trim()}${formData.lastName.trim()}${randomSuffix}`;
 
     const formPayload = new FormData();
     formPayload.append("first_name", formData.firstName);
     formPayload.append("last_name", formData.lastName);
     formPayload.append("email", formData.email);
-    formPayload.append("username", generatedUsername);
     formPayload.append("password", formData.password);
     formPayload.append("password_confirmation", formData.password);
     if (formData.avatar) formPayload.append("avatar", formData.avatar);
@@ -98,7 +91,6 @@ const RegistrationPage: React.FC = () => {
       });
 
       const result = await res.json();
-      console.log("API response errors:", result.errors);
 
       if (res.ok) {
         alert("Account created successfully!");
@@ -113,11 +105,12 @@ const RegistrationPage: React.FC = () => {
             serverErrors.firstName = result.errors.first_name[0];
           if (result.errors.last_name)
             serverErrors.lastName = result.errors.last_name[0];
-          if (result.errors.email) serverErrors.email = result.errors.email[0];
+          if (result.errors.email)
+            serverErrors.email = result.errors.email[0];
           if (result.errors.password)
             serverErrors.password = result.errors.password[0];
           if (result.errors.username)
-            serverErrors.username = "Username has already been taken.";
+            serverErrors.lastName = result.errors.username[0]; // عرضها تحت last name
         }
         setErrors(serverErrors);
       }
@@ -134,7 +127,7 @@ const RegistrationPage: React.FC = () => {
 
   return (
     <div className="flex flex-col-reverse md:flex-row w-full h-screen bg-gray-950">
-      {/* Left background with hover effect */}
+      {/* Left Image */}
       <div className="w-full md:w-1/2 relative h-[250px] md:h-screen group">
         <img
           src="/background.jpg"
@@ -145,7 +138,7 @@ const RegistrationPage: React.FC = () => {
         <div className="absolute inset-0 bg-black opacity-20" />
       </div>
 
-      {/* Registration section */}
+      {/* Form Section */}
       <section className="w-full md:w-1/2 flex flex-col justify-start px-4 py-4 md:py-8 md:px-10 h-screen">
         <div className="w-full max-w-[600px] bg-[#1a1f27] p-6 rounded-xl shadow-2xl mx-auto h-full flex flex-col">
           <nav className="mb-6">
@@ -175,7 +168,7 @@ const RegistrationPage: React.FC = () => {
             </p>
           </header>
 
-          {/* Avatar upload */}
+          {/* Avatar Upload */}
           <div className="flex justify-center mb-4">
             <label htmlFor="imageUpload" className="relative cursor-pointer group">
               {imagePreview ? (
@@ -224,9 +217,10 @@ const RegistrationPage: React.FC = () => {
                 type="text"
                 value={formData.lastName}
                 onChange={handleChange}
-                error={errors.lastName}
+                error={errors.lastName} 
               />
             </div>
+
             <InputField
               label="Email"
               id="email"
@@ -236,6 +230,7 @@ const RegistrationPage: React.FC = () => {
               onChange={handleChange}
               error={errors.email}
             />
+
             <PasswordField
               label="Password"
               id="password"
@@ -246,11 +241,6 @@ const RegistrationPage: React.FC = () => {
               toggleShowPassword={() => setShowPassword((prev) => !prev)}
               error={errors.password}
             />
-
-            {/* عرض رسالة خطأ اسم المستخدم هنا */}
-            {errors.username && (
-              <p className="text-red-500 text-sm mb-4">{errors.username}</p>
-            )}
 
             <button
               type="submit"
@@ -285,7 +275,7 @@ const RegistrationPage: React.FC = () => {
             </button>
           </form>
 
-          <footer className="mt-6 flex items-center  text-gray-400 text-xs md:text-sm">
+          <footer className="mt-6 flex items-center text-gray-400 text-xs md:text-sm">
             <div className="flex items-center space-x-2">
               <svg
                 xmlns="http://www.w3.org/2000/svg"

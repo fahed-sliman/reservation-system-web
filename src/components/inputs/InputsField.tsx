@@ -30,7 +30,7 @@ const InputField: React.FC<InputFieldProps> = ({
       value={value}
       onChange={onChange}
       autoComplete="off"
-      className={`w-full px-3 py-2 border rounded text-white bg-[#22272e] focus:outline-none transition
+      className={` w-full px-3 py-2 border rounded text-white bg-[#22272e] focus:outline-none transition
         ${
           error
             ? "border-red-500 focus:border-red-500"

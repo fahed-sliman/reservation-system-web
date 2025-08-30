@@ -1,0 +1,37 @@
+{
+  "hotels": [
+    {
+      "id": 1,
+      "en_title": "Luxury Palace Hotel",
+      "ar_title": "فندق القصر الفاخر",
+      "image": "https://picsum.photos/seed/hotel1/600/400",
+      "en_location": "Dubai",
+      "ar_location": "دبي",
+      "price": 120.5
+    },
+    {
+      "id": 2,
+      "en_title": "City Center Inn",
+      "ar_title": "نزل وسط المدينة",
+      "image": "https://picsum.photos/seed/hotel2/600/400",
+      "en_location": "Cairo",
+      "ar_location": "القاهرة",
+      "price": 80
+    },
+    {
+      "id": 3,
+      "en_title": "Beach Resort",
+      "ar_title": "منتجع الشاطئ",
+      "image": "https://picsum.photos/seed/hotel3/600/400",
+      "en_location": "Alexandria",
+      "ar_location": "الإسكندرية",
+      "price": 150
+    }
+  ],
+
+  "ratings": [
+    { "id": 1, "rateable_type": "hotel", "rateable_id": 1, "average_rating": 4.5, "ratings_count": 22 },
+    { "id": 2, "rateable_type": "hotel", "rateable_id": 2, "average_rating": 3.8, "ratings_count": 10 },
+    { "id": 3, "rateable_type": "hotel", "rateable_id": 3, "average_rating": 0, "ratings_count": 0 }
+  ]
+}

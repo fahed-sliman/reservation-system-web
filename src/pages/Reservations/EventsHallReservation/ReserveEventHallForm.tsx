@@ -1,142 +1,193 @@
-// src/components/ReserveEventHallForm.tsx
-
-import React, { useState, useEffect } from 'react';
-import { FaCalendarAlt, FaClock, FaUsers, FaCreditCard, FaTicketAlt, FaBuilding, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import React, { useState, useEffect, useCallback, FC } from 'react';
+import toast from 'react-hot-toast';
+import { FaCalendarAlt, FaClock, FaUsers, FaCreditCard, FaTicketAlt, FaBuilding } from 'react-icons/fa';
 import type { ReserveEventHallRequest } from '../../../types';
 
-interface ReserveEventHallFormProps {
-  eventHallId: number;
-  onClose: () => void;
+// Import necessary contexts
+import { useLanguage } from '../../../context/LanguageContext';
+import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
+
+// Interface for the error response from the server
+interface ApiErrorResponse {
+  message: string;
+  errors?: Record<string, string[]>;
 }
 
-const ReserveEventHallForm: React.FC<ReserveEventHallFormProps> = ({ eventHallId, onClose }) => {
+const translations = {
+  ar: {
+    eventType: "نوع المناسبة", wedding: "حفل زفاف", funeral: "مناسبة عزاء",
+    reservationDate: "تاريخ الحجز", reservationTime: "وقت الحجز", timePlaceholder: "مثال: 18:00-22:00",
+    guests: "عدد الضيوف", paymentMethod: "طريقة الدفع", creditCard: "بطاقة ائتمانية",
+    cash: "نقداً عند الحضور", couponCode: "كود الكوبون (اختياري)", couponPlaceholder: "أدخل الكود هنا إن وجد",
+    submitButton: "تأكيد الحجز", submittingButton: "جاري التأكيد...",
+    successMessage: "تم إرسال طلب الحجز بنجاح!",
+    errorMessage: "عذراً، حدث خطأ ما. يرجى التحقق من بياناتك والمحاولة مرة أخرى.",
+    networkError: "خطأ في الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.",
+    dateRequired: "حقل التاريخ مطلوب.", timeRequired: "حقل الوقت مطلوب.",
+    guestsRequired: "يجب أن يكون عدد الضيوف شخصاً واحداً على الأقل.",
+  },
+  en: {
+    eventType: "Event Type", wedding: "Wedding", funeral: "Funeral",
+    reservationDate: "Reservation Date", reservationTime: "Reservation Time", timePlaceholder: "e.g., 18:00-22:00",
+    guests: "Number of Guests", paymentMethod: "Payment Method", creditCard: "Credit Card",
+    cash: "Cash on Arrival", couponCode: "Coupon Code (Optional)", couponPlaceholder: "Enter code here if you have one",
+    submitButton: "Confirm Booking", submittingButton: "Confirming...",
+    successMessage: "Booking request sent successfully!",
+    errorMessage: "Sorry, an error occurred. Please check your data and try again.",
+    networkError: "Server connection error. Please check your internet connection.",
+    dateRequired: "Date field is required.", timeRequired: "Time field is required.",
+    guestsRequired: "Number of guests must be at least 1.",
+  },
+};
+
+interface ReserveEventHallFormProps {
+    eventHallId: number;
+    onClose: () => void;
+}
+
+const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onClose }) => {
+  // Use the actual context hooks
+  const { language } = useLanguage();
+  const { theme } = useTheme();
+  const { token } = useAuth();
+
+  const t = useCallback((key: keyof typeof translations['en']) => translations[language][key] || key, [language]);
+  
   const [formData, setFormData] = useState<Omit<ReserveEventHallRequest, 'eventHallId'>>({
-    eventType: 'wedding',
-    reservationDate: '',
-    reservationTime: '',
-    guests: 1,
-    paymentMethod: 'credit_card',
-    couponCode: '',
+    eventType: 'wedding', reservationDate: '', reservationTime: '',
+    guests: 1, paymentMethod: 'credit_card', couponCode: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [submissionMessage, setSubmissionMessage] = useState('');
-
-  // قفل التمرير
+  
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = 'auto';
     };
   }, []);
+  
+  const mapApiErrors = (apiErrors: Record<string, string[]>): Record<string, string> => {
+    const newErrors: Record<string, string> = {};
+    for (const key in apiErrors) {
+      const frontendKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+      if (apiErrors[key].length > 0) {
+        newErrors[frontendKey] = apiErrors[key][0];
+      }
+    }
+    return newErrors;
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!formData.reservationDate) newErrors.reservationDate = 'حقل التاريخ مطلوب.';
-    if (!formData.reservationTime.trim()) newErrors.reservationTime = 'حقل الوقت مطلوب.';
-    if (!formData.guests || formData.guests < 1) newErrors.guests = 'يجب أن يكون عدد الضيوف شخصاً واحداً على الأقل.';
+    if (!formData.reservationDate) newErrors.reservationDate = t('dateRequired');
+    if (!formData.reservationTime.trim()) newErrors.reservationTime = t('timeRequired');
+    if (!formData.guests || formData.guests < 1) newErrors.guests = t('guestsRequired');
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmissionStatus('idle');
-    if (validateForm()) {
-      setIsSubmitting(true);
-      const completeFormData: ReserveEventHallRequest = { ...formData, eventHallId };
-      try {
-        console.log('Sending booking data:', completeFormData);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setSubmissionStatus('success');
-        setSubmissionMessage('تم إرسال طلب الحجز بنجاح! سيتم إغلاق النموذج الآن.');
-        setTimeout(onClose, 2000);
-      } catch (error) {
-        setSubmissionStatus('error');
-        setSubmissionMessage('عذراً، حدث خطأ أثناء إرسال الحجز. يرجى المحاولة مرة أخرى.');
-      } finally {
-        setIsSubmitting(false);
+    setErrors({});
+
+    if (!validateForm()) {
+      return;
+    }
+      
+    setIsSubmitting(true);
+    
+    const payload = {
+      event_hall_id: eventHallId,
+      event_type: formData.eventType,
+      reservation_date: formData.reservationDate,
+      reservation_time: formData.reservationTime,
+      guests: formData.guests,
+      payment_method: formData.paymentMethod,
+      ...(formData.couponCode && { coupon_code: formData.couponCode }),
+    };
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/event-halls/reserve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result: ApiErrorResponse = await response.json();
+
+      if (response.ok) {
+        toast.success(result.message || t('successMessage'));
+        setTimeout(onClose, 2500);
+      } else {
+        toast.error(result.message || t('errorMessage'));
+        if (result.errors) {
+          setErrors(mapApiErrors(result.errors));
+        }
       }
+    } catch (error) {
+      toast.error(t('networkError'));
+      console.error("Network or submission error:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: name === 'guests' ? Number(value) : value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
+  
+  const inputClasses = `w-full text-lg pl-12 pr-4 py-3 rounded-lg border focus:ring-2 focus:outline-none transition-colors duration-300 ${theme === 'dark' ? 'bg-gray-900 text-white border-gray-600 focus:ring-orange-500' : 'bg-gray-100 text-gray-800 border-gray-300 focus:ring-orange-500'}`;
+  const labelClasses = `block font-bold mb-2 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="eventType" className="block text-orange-400 font-bold mb-2">نوع المناسبة</label>
-          <div className="relative">
-             <FaBuilding className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select id="eventType" name="eventType" value={formData.eventType} onChange={handleChange} className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-colors duration-300">
-              <option value="wedding">حفل زفاف</option>
-              <option value="funeral">مناسبة عزاء</option>
-            </select>
-          </div>
+          <label htmlFor="eventType" className={labelClasses}>{t('eventType')}</label>
+          <div className="relative"><FaBuilding className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" /><select id="eventType" name="eventType" value={formData.eventType} onChange={handleChange} className={inputClasses}><option value="wedding">{t('wedding')}</option><option value="funeral">{t('funeral')}</option></select></div>
+          {errors.eventType && <p className="text-red-400 text-sm mt-1">{errors.eventType}</p>}
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label htmlFor="reservationDate" className="block text-orange-400 font-bold mb-2">تاريخ الحجز</label>
-            <div className="relative">
-              <FaCalendarAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="date" id="reservationDate" name="reservationDate" value={formData.reservationDate} onChange={handleChange} className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-colors duration-300" style={{colorScheme: 'dark'}} />
-            </div>
+            <label htmlFor="reservationDate" className={labelClasses}>{t('reservationDate')}</label>
+            <div className="relative"><FaCalendarAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" /><input type="date" id="reservationDate" name="reservationDate" value={formData.reservationDate} onChange={handleChange} className={inputClasses} style={{colorScheme: theme}} /></div>
             {errors.reservationDate && <p className="text-red-400 text-sm mt-1">{errors.reservationDate}</p>}
           </div>
           <div>
-            <label htmlFor="reservationTime" className="block text-orange-400 font-bold mb-2">وقت الحجز</label>
-            <div className="relative">
-              <FaClock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" id="reservationTime" name="reservationTime" placeholder="مثال: 18:00-22:00" value={formData.reservationTime} onChange={handleChange} className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-colors duration-300" />
-            </div>
+            <label htmlFor="reservationTime" className={labelClasses}>{t('reservationTime')}</label>
+            <div className="relative"><FaClock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" id="reservationTime" name="reservationTime" placeholder={t('timePlaceholder')} value={formData.reservationTime} onChange={handleChange} className={inputClasses} /></div>
             {errors.reservationTime && <p className="text-red-400 text-sm mt-1">{errors.reservationTime}</p>}
           </div>
         </div>
-        
         <div>
-          <label htmlFor="guests" className="block text-orange-400 font-bold mb-2">عدد الضيوف</label>
-          <div className="relative">
-            <FaUsers className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="number" id="guests" name="guests" min="1" value={formData.guests} onChange={handleChange} className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-colors duration-300" />
-          </div>
+          <label htmlFor="guests" className={labelClasses}>{t('guests')}</label>
+          <div className="relative"><FaUsers className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" /><input type="number" id="guests" name="guests" min="1" value={formData.guests} onChange={handleChange} className={inputClasses} /></div>
           {errors.guests && <p className="text-red-400 text-sm mt-1">{errors.guests}</p>}
         </div>
         <div>
-          <label htmlFor="paymentMethod" className="block text-orange-400 font-bold mb-2">طريقة الدفع</label>
-          <div className="relative">
-            <FaCreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select id="paymentMethod" name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-colors duration-300">
-              <option value="credit_card">بطاقة ائتمانية</option>
-              <option value="cash">نقداً عند الحضور</option>
-              <option value="MTN_CASH">MTN Cash</option>
-            </select>
-          </div>
+          <label htmlFor="paymentMethod" className={labelClasses}>{t('paymentMethod')}</label>
+          <div className="relative"><FaCreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" /><select id="paymentMethod" name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} className={inputClasses}><option value="credit_card">{t('creditCard')}</option><option value="cash">{t('cash')}</option><option value="MTN_CASH">MTN Cash</option></select></div>
+          {errors.paymentMethod && <p className="text-red-400 text-sm mt-1">{errors.paymentMethod}</p>}
         </div>
         <div>
-          <label htmlFor="couponCode" className="block text-gray-400 font-bold mb-2">كود الكوبون (اختياري)</label>
-          <div className="relative">
-            <FaTicketAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" id="couponCode" name="couponCode" placeholder="أدخل الكود هنا إن وجد" value={formData.couponCode ?? ''} onChange={handleChange} className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-colors duration-300" />
-          </div>
+          <label htmlFor="couponCode" className={`block font-bold mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{t('couponCode')}</label>
+          <div className="relative"><FaTicketAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" id="couponCode" name="couponCode" placeholder={t('couponPlaceholder')} value={formData.couponCode ?? ''} onChange={handleChange} className={inputClasses} /></div>
+          {errors.couponCode && <p className="text-red-400 text-sm mt-1">{errors.couponCode}</p>}
         </div>
+        <hr className={`!my-8 ${theme === 'dark' ? 'border-gray-700/60' : 'border-gray-200'}`} />
         
-        <hr className="border-gray-700/60 !my-8" />
-        
-        {submissionStatus !== 'idle' && (
-          <div className={`flex items-center justify-center gap-3 text-center p-3 rounded-lg font-semibold ${submissionStatus === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-            {submissionStatus === 'success' ? <FaCheckCircle /> : <FaExclamationCircle />}
-            <span>{submissionMessage}</span>
-          </div>
-        )}
-
-        <button type="submit" disabled={isSubmitting} className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-lg py-4 rounded-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed">
-          {isSubmitting ? 'جاري التأكيد...' : 'تأكيد الحجز'}
+        <button type="submit" disabled={isSubmitting || !token} className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-lg py-4 rounded-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed">
+          {isSubmitting ? t('submittingButton') : t('submitButton')}
         </button>
     </form>
   );

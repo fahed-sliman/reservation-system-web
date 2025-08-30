@@ -1,33 +1,59 @@
-import React from 'react';
-import { FaEnvelope, FaUser } from 'react-icons/fa';
-import type { User } from '../../types';
+// src/components/profile/UserInfoDisplay.tsx
+import React from "react";
+import { useLanguage } from "../../context/LanguageContext";
+import { useTheme } from "../../context/ThemeContext";
+import type { User } from "../../context/AuthContext";
 
-interface InfoFieldProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
+
+interface Props {
+  user: User;
 }
 
-const InfoField: React.FC<InfoFieldProps> = ({ icon, label, value }) => (
-  <div>
-    <label className="text-sm text-gray-500">{label}</label>
-    <div className="flex items-center gap-3 mt-1">
-      <span className="text-orange-400">{icon}</span>
-      <p className="w-full px-4 py-2 rounded-md bg-gray-800 text-white select-all">{value}</p>
-    </div>
-  </div>
-);
+const UserInfoDisplay: React.FC<Props> = ({ user }) => {
+  const { language } = useLanguage();
+  const { theme } = useTheme();
 
-interface UserInfoDisplayProps {
-  user: User | null;
-}
+  const texts = {
+    ar: { firstName: "الاسم الأول", lastName: "الاسم الأخير", email: "البريد الإلكتروني" },
+    en: { firstName: "First Name", lastName: "Last Name", email: "Email Address" },
+  };
 
-const UserInfoDisplay: React.FC<UserInfoDisplayProps> = ({ user }) => {
+  const t = texts[language];
+
+  const inputStyle =
+    theme === "dark"
+      ? "bg-gray-700 text-white border-gray-600"
+      : "bg-gray-100 text-gray-900 border-gray-300";
+
   return (
-    <div className="space-y-6">
-      <InfoField icon={<FaUser />} label="First Name" value={user?.first_name || 'N/A'} />
-      <InfoField icon={<FaUser />} label="Last Name" value={user?.last_name || 'N/A'} />
-      <InfoField icon={<FaEnvelope />} label="Email Address" value={user?.email || 'N/A'} />
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-1">{t.firstName}</label>
+        <input
+          type="text"
+          value={user.first_name}
+          disabled
+          className={`w-full p-3 rounded-lg border ${inputStyle}`}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">{t.lastName}</label>
+        <input
+          type="text"
+          value={user.last_name}
+          disabled
+          className={`w-full p-3 rounded-lg border ${inputStyle}`}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">{t.email}</label>
+        <input
+          type="text"
+          value={user.email}
+          disabled
+          className={`w-full p-3 rounded-lg border ${inputStyle}`}
+        />
+      </div>
     </div>
   );
 };

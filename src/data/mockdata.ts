@@ -26,7 +26,7 @@ export const mockCategories: Category[] = [
     id: 2,
     ar_title: "قاعات مناسبات",
     en_title: "Event Halls",
-    image: "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1350&q=80",
+    image: "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1350&q=80https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1350&q=80",
     created_at: "2025-07-01",
     updated_at: "2025-07-01",
   },

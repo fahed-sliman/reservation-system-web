@@ -1,156 +1,182 @@
-
-
-import  { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ItemCard from "../../components/MinCard/ItemCard";
-import Footer from "../../components/Footer/Footer";
-import Header from "../../components/Header/header";
-import { FaStar, FaMapMarkerAlt, FaHotel } from "react-icons/fa";    
-
-import { mockHotels, mockRatings, mockCategories } from "../../data/mockdata";
-import type { Hotel } from "../../types";
 import ItemCardSkeleton from "../../components/MinCard/ItemCardSkeleton";
+import Header from "../../components/Header/header";
+import Footer from "../../components/Footer/Footer";
+import { FaHotel } from "react-icons/fa";
+import type { Hotel } from "../../types";
+import { apiService } from "../../services/apiService";
 
-// *** إضافة: أنماط CSS للتأثيرات الحركية ***
+import { useLanguage } from "../../context/LanguageContext";
+import { useTheme } from "../../context/ThemeContext";
+
 const customAnimations = `
   @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-  .animate-fade-in-up-item {
-    animation: fade-in-up 0.6s ease-out forwards;
-  }
+  .animate-fade-in-up-item { animation: fade-in-up 0.6s ease-out forwards; }
 `;
 
+// ✅ ==================  الحل هنا ================== ✅
+// تم تعديل دالة `foundHotels` لتستقبل كائنًا
+const translations = {
+  ar: {
+    searchTitle: "ابحث عن إقامتك المثالية",
+    searchPlaceholder: "ابحث عن اسم الفندق...",
+    searchButton: "بحث",
+    loadingHotels: "جاري تحميل الفنادق...",
+    foundHotels: (options: { count: number }) => `وجدنا لك ${options.count} فندقاً`, // التعديل هنا
+    noHotelsTitle: "لا توجد فنادق تطابق بحثك",
+    noHotelsMessage: "جرّب تغيير كلمات البحث.",
+    failedToLoadHotels: "فشل تحميل الفنادق",
+  },
+  en: {
+    searchTitle: "Find Your Perfect Stay",
+    searchPlaceholder: "Search for hotel name...",
+    searchButton: "Search",
+    loadingHotels: "Loading hotels...",
+    foundHotels: (options: { count: number }) => `Found ${options.count} hotels for you`, // التعديل هنا
+    noHotelsTitle: "No hotels match your search",
+    noHotelsMessage: "Try changing your search terms.",
+    failedToLoadHotels: "Failed to load hotels",
+  },
+};
+// ✅ =============================================== ✅
+
 const HotelsPage = () => {
-  const [filteredHotels, setFilteredHotels] = useState<Hotel[]>([]);
-  const [minRating, setMinRating] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
+  const { language } = useLanguage();
+  const { theme } = useTheme();
+
+  const t = useCallback((key: keyof typeof translations['en'], options?: { count: number }) => {
+    const translation = translations[language][key];
+    if (typeof translation === 'function') {
+      // الآن هذا السطر يعمل بشكل صحيح لأن الدالة تتوقع كائنًا
+      return (translation as (options: { count: number }) => string)(options!);
+    }
+    return translation;
+  }, [language]);
+
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [ratings, setRatings] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
+  const fetchHotels = async (query: string = "") => {
     setLoading(true);
-    const timer = setTimeout(() => {
-      const filtered = mockHotels.filter((hotel) => {
-        const ratingData = mockRatings.filter(r => r.rateable_type === 'hotel' && r.rateable_id === hotel.id);
-        const avgRating = ratingData.length > 0 
-          ? ratingData.reduce((sum, r) => sum + r.rating, 0) / ratingData.length
-          : 0;
+    setError(null);
+    try {
+      const data = await apiService.getHotels(query);
+      setHotels(data);
 
-        const matchesRating = avgRating >= minRating;
-        const matchesLocation = !searchQuery || hotel.en_location.toLowerCase().includes(searchQuery.toLowerCase().trim());
+      const ratingsData = await apiService.getBatchRatings(
+        data.map((hotel) => ({ type: "hotel", id: hotel.id }))
+      );
 
-        return matchesRating && matchesLocation;
+      const hotelRatings: Record<number, number> = {};
+      Object.entries(ratingsData).forEach(([key, rating]) => {
+        const hotelId = parseInt(key.split("_")[1]);
+        hotelRatings[hotelId] = rating;
       });
-      setFilteredHotels(filtered);
-      setLoading(false);
-    }, 800); 
-    return () => clearTimeout(timer);
-  }, [minRating, searchQuery]);
+      setRatings(hotelRatings);
 
-  const handleResetFilters = () => {
-    setMinRating(0);
-    setSearchQuery("");
+    } catch (err: any) {
+      console.error("API Error:", err);
+      setError(err.message || t('failedToLoadHotels'));
+      setHotels([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const hotelCategory = mockCategories.find(cat => cat.en_title.toLowerCase().includes('hotel'));
+  useEffect(() => {
+    fetchHotels();
+  }, []);
+
+  const handleSearch = () => {
+    fetchHotels(searchQuery);
+  };
+
+  const filteredHotels = hotels.filter(
+    (hotel) =>
+      hotel.ar_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      hotel.en_title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="bg-gray-900 text-white min-h-screen">
+    <div className={`min-h-screen transition-colors duration-500 ${
+        theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
+    }`}>
       <Header />
       <style>{customAnimations}</style>
 
-      <div className="relative h-[60vh] w-full">
-        <img src={hotelCategory?.image || '/public/hotels.jpg'} alt="Explore Hotels" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/30 flex flex-col items-center justify-center text-center px-4">
-          <h1 className="text-6xl md:text-8xl font-black text-white drop-shadow-2xl animate-fade-in-down">
-            {hotelCategory?.en_title || 'Explore Hotels'}
-          </h1>
-          <p className="text-lg md:text-2xl mt-6 text-gray-200 max-w-3xl animate-fade-in-up leading-relaxed">
-            ابحث وقارن بين مئات الفنادق للعثور على المكان المثالي لإقامتك القادمة.
-          </p>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 py-16">
-        {/* --- شريط الفلترة الجمالي الجديد --- */}
-        <div className="bg-gray-800/60 backdrop-blur-sm p-8 rounded-2xl border border-gray-700 mb-16 shadow-lg">
-            <h2 className="text-3xl font-bold text-center text-white mb-6">ابحث عن إقامتك المثالية</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 items-end">
-                {/* فلتر التقييم */}
-                <div className="w-full lg:col-span-1">
-                    <label className="block text-orange-400 font-bold mb-2">التقييم</label>
-                    <div className="relative">
-                        <FaStar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <select
-                            className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none cursor-pointer"
-                            value={minRating}
-                            onChange={(e) => setMinRating(Number(e.target.value))}
-                        >
-                            {[0, 1, 2, 3, 4].map((rate) => (
-                                <option key={rate} value={rate}>{rate === 0 ? "كل التقييمات" : `${rate}+ نجوم`}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-                {/* فلتر الموقع (نص) */}
-                <div className="w-full md:col-span-2 lg:col-span-2">
-                    <label className="block text-orange-400 font-bold mb-2">الموقع</label>
-                    <div className="relative">
-                        <FaMapMarkerAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="ابحث عن مدينة أو منطقة..."
-                            className="w-full bg-gray-900 text-white pl-12 pr-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-orange-500 focus:outline-none"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
-                {/* زر إلغاء الفلاتر */}
-                <div className="w-full">
-                    <button onClick={handleResetFilters} className="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 rounded-lg transition-colors">
-                        إعادة تعيين
-                    </button>
-                </div>
-            </div>
+        <div className={`backdrop-blur-sm p-8 rounded-2xl border mb-16 shadow-lg transition-colors duration-300 ${
+            theme === 'dark' ? 'bg-gray-800/60 border-gray-700' : 'bg-white border-gray-200'
+        }`}>
+          <h2 className={`text-3xl font-bold text-center mb-6 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            {t('searchTitle')}
+          </h2>
+          <div className="flex gap-4">
+            <input
+              type="text"
+              placeholder={t('searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full pl-4 pr-4 py-3 rounded-lg border focus:ring-2 focus:outline-none transition-colors duration-300 ${
+                theme === 'dark' 
+                ? 'bg-gray-900 text-white border-gray-600 focus:ring-orange-500' 
+                : 'bg-gray-100 text-gray-900 border-gray-300 focus:ring-orange-500'
+              }`}
+            />
+            <button
+              onClick={handleSearch}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-lg transition-colors cursor-pointer"
+            >
+              {t('searchButton')}
+            </button>
+          </div>
         </div>
 
-        {/* --- قسم عرض النتائج --- */}
         <div className="mb-8 text-center">
-            <h3 className="text-3xl font-bold text-white transition-opacity duration-500">
-                {loading ? 'جاري البحث عن أفضل الفنادق...' : `وجدنا لك ${filteredHotels.length} فندقاً`}
-            </h3>
+          <h3 className={`text-3xl font-bold transition-opacity duration-500 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            {loading
+              ? t("loadingHotels")
+              : t("foundHotels", { count: filteredHotels.length })}
+          </h3>
         </div>
 
         {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
-                {Array(6).fill(0).map((_, idx) => <ItemCardSkeleton key={idx} />)}
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+            {Array(6).fill(0).map((_, idx) => (
+                <ItemCardSkeleton key={idx} />
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center text-red-500 py-10">{error}</div>
         ) : filteredHotels.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
-                {filteredHotels.map((hotel) => {
-                    const ratingInfo = mockRatings.find(r => r.rateable_type === 'hotel' && r.rateable_id === hotel.id);
-                    return (
-                        <div key={hotel.id} className="animate-fade-in-up-item">
-                            <ItemCard item={hotel} loading={false} type="hotel" rating={ratingInfo || null} />
-                        </div>
-                    );
-                })}
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+            {filteredHotels.map((hotel) => (
+              <div key={hotel.id} className="animate-fade-in-up-item">
+                <ItemCard
+                  item={hotel}
+                  loading={false}
+                  type="hotel"
+                  rating={ratings[hotel.id] || 0}
+                />
+              </div>
+            ))}
+          </div>
         ) : (
-            <div className="text-center py-20 animate-fade-in-up-item">
-                <FaHotel className="text-7xl text-gray-600 mx-auto mb-6" />
-                <h2 className="text-3xl font-bold text-gray-400">لا توجد فنادق تطابق بحثك</h2>
-                <p className="text-lg text-gray-500 mt-2">جرّب تغيير كلمات البحث أو تعديل الفلاتر.</p>
-            </div>
+          <div className="text-center py-20 animate-fade-in-up-item">
+            <FaHotel className={`text-7xl mx-auto mb-6 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <h2 className={`text-3xl font-bold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>{t('noHotelsTitle')}</h2>
+            <p className={`text-lg mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>{t('noHotelsMessage')}</p>
+          </div>
         )}
       </div>
+
       <Footer />
     </div>
   );

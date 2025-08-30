@@ -1,38 +1,87 @@
-import React, {
-  useState,
-  useEffect,
-  type ChangeEvent,
-  type FormEvent,
-} from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { RegisterRequest } from "../../types";
+import toast from 'react-hot-toast';
 import InputField from "../../components/inputs/InputsField";
 import PasswordField from "../../components/inputs/PasswordFieldProps";
-
-interface Errors {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  password?: string;
-}
-
-const INITIAL_FORM_DATA: RegisterRequest = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  password: "",
-  avatar: null,
-};
+import { useLanguage } from "../../context/LanguageContext";
+import { useTheme } from "../../context/ThemeContext";
+import { useAuth, type RegisterRequest, type AuthResponse } from "../../context/AuthContext";
 
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState<RegisterRequest>(INITIAL_FORM_DATA);
-  const [errors, setErrors] = useState<Errors>({});
+  const { theme } = useTheme();
+  const { language } = useLanguage();
+  const { register } = useAuth();
+
+  const [formData, setFormData] = useState<Omit<RegisterRequest, "fingerprint"> & { confirmPassword?: string }>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    avatar: null,
+    confirmPassword: "",
+  });
+
+  const [errors, setErrors] = useState<{ [K in keyof Omit<RegisterRequest, "fingerprint"> | "confirmPassword" | "general"]?: string }>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  // === الترجمات ===
+  const texts = {
+    ar: {
+      login: "تسجيل الدخول",
+      registration: "إنشاء حساب",
+      goodMorning: "صباح الخير!",
+      createAccount: "أنشئ حسابك الجديد أدناه.",
+      firstName: "الاسم الأول",
+      lastName: "اسم العائلة",
+      email: "البريد الإلكتروني",
+      password: "كلمة المرور",
+      confirmPassword: "تأكيد كلمة المرور",
+      register: "إنشاء الحساب",
+      registering: "جاري التسجيل...",
+      accountCreated: "تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول.",
+      unexpectedError: "حدث خطأ غير متوقع. حاول مرة أخرى.",
+      firstNameRequired: "الاسم الأول مطلوب.",
+      lastNameRequired: "اسم العائلة مطلوب.",
+      emailRequired: "البريد الإلكتروني مطلوب.",
+      invalidEmail: "البريد الإلكتروني غير صالح.",
+      passwordMinLength: "كلمة المرور يجب أن تكون 8 أحرف على الأقل.",
+      confirmPasswordRequired: "تأكيد كلمة المرور مطلوب.",
+      passwordsDoNotMatch: "كلمات المرور غير متطابقة.",
+      emailAlreadyTaken: "البريد الإلكتروني مستخدم بالفعل",
+    },
+    en: {
+      login: "Login",
+      registration: "Registration",
+      goodMorning: "Good Morning!",
+      createAccount: "Create your new account below.",
+      firstName: "First Name",
+      lastName: "Last Name",
+      email: "Email",
+      password: "Password",
+      confirmPassword: "Confirm Password",
+      register: "Register",
+      registering: "Registering...",
+      accountCreated: "Account created successfully! You can now log in.",
+      unexpectedError: "Unexpected error occurred. Please try again.",
+      firstNameRequired: "First name is required.",
+      lastNameRequired: "Last name is required.",
+      emailRequired: "Email is required.",
+      invalidEmail: "Invalid email format.",
+      passwordMinLength: "Password must be at least 8 characters.",
+      confirmPasswordRequired: "Confirm password is required.",
+      passwordsDoNotMatch: "Passwords do not match.",
+      emailAlreadyTaken: "Email already taken",
+    },
+  };
+
+  const currentTexts = texts[language];
+
+  // === تغيير الحقول ===
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, files } = e.target;
 
     if (name === "avatar" && files && files.length > 0) {
@@ -43,258 +92,225 @@ const RegistrationPage: React.FC = () => {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
 
-    setErrors((prev) => ({ ...prev, [name]: undefined }));
+    if (errors[name as keyof typeof errors]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined, general: undefined }));
+    }
   };
 
+  // تنظيف URL الصورة
   useEffect(() => {
     return () => {
       if (imagePreview) URL.revokeObjectURL(imagePreview);
     };
   }, [imagePreview]);
 
+  // === التحقق ===
   const validate = (): boolean => {
-    const newErrors: Errors = {};
-    if (!formData.firstName.trim())
-      newErrors.firstName = "First name is required.";
-    if (!formData.lastName.trim())
-      newErrors.lastName = "Last name is required.";
-    if (!formData.email.trim()) newErrors.email = "Email is required.";
-    else if (!/^\S+@\S+\.\S+$/.test(formData.email))
-      newErrors.email = "Invalid email format.";
-    if (!formData.password || formData.password.length < 8)
-      newErrors.password = "Password must be at least 8 characters.";
+    const newErrors: typeof errors = {};
+    if (!formData.firstName?.trim()) newErrors.firstName = currentTexts.firstNameRequired;
+    if (!formData.lastName?.trim()) newErrors.lastName = currentTexts.lastNameRequired;
+    if (!formData.email?.trim()) newErrors.email = currentTexts.emailRequired;
+    else if (!/^\S+@\S+\.\S+$/.test(formData.email)) newErrors.email = currentTexts.invalidEmail;
+    if (!formData.password || formData.password.length < 8) newErrors.password = currentTexts.passwordMinLength;
+    if (!formData.confirmPassword) newErrors.confirmPassword = currentTexts.confirmPasswordRequired;
+    else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = currentTexts.passwordsDoNotMatch;
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  // === إرسال ===
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    setIsLoading(true);
 
-    const formPayload = new FormData();
-    formPayload.append("first_name", formData.firstName);
-    formPayload.append("last_name", formData.lastName);
-    formPayload.append("email", formData.email);
-    formPayload.append("password", formData.password);
-    formPayload.append("password_confirmation", formData.password);
-    if (formData.avatar) formPayload.append("avatar", formData.avatar);
+    setIsLoading(true);
+    setErrors({});
+
+    const registerData: RegisterRequest = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      password: formData.password,
+      avatar: formData.avatar,
+      fingerprint: null,
+    };
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/user/register", {
-        method: "POST",
-        body: formPayload,
-        headers: {
-          Accept: "application/json",
-        },
-      });
+      const result: AuthResponse = await register(registerData);
 
-      const result = await res.json();
-
-      if (res.ok) {
-        alert("Account created successfully!");
-        setFormData(INITIAL_FORM_DATA);
-        setImagePreview(null);
-        setErrors({});
-        navigate("/login");
+      if (result.success) {
+        toast.success(result.message || currentTexts.accountCreated, {
+          duration: 4000,
+          style: {
+            background: '#22c55e',
+            color: 'white',
+            border: '1px solid #16a34a',
+          },
+        });
+        
+        // التوجيه بعد 2 ثانية
+        setTimeout(() => {
+          navigate("/login");
+        }, 2000);
       } else {
-        const serverErrors: Errors = {};
-        if (result.errors) {
-          if (result.errors.first_name)
-            serverErrors.firstName = result.errors.first_name[0];
-          if (result.errors.last_name)
-            serverErrors.lastName = result.errors.last_name[0];
-          if (result.errors.email)
-            serverErrors.email = result.errors.email[0];
-          if (result.errors.password)
-            serverErrors.password = result.errors.password[0];
-          if (result.errors.username)
-            serverErrors.lastName = result.errors.username[0]; // عرضها تحت last name
+        const msg = (result.message || "").toLowerCase();
+        if (msg.includes("email") && msg.includes("taken")) {
+          setErrors({ email: currentTexts.emailAlreadyTaken });
+        } else if (result.message) {
+          setErrors({ general: result.message });
+          toast.error(result.message);
+        } else {
+          setErrors({ general: currentTexts.unexpectedError });
+          toast.error(currentTexts.unexpectedError);
         }
-        setErrors(serverErrors);
       }
-    } catch (error) {
-      console.error("Registration error:", error);
-      setErrors((prev) => ({
-        ...prev,
-        email: "Unexpected error occurred. Please try again.",
-      }));
+    } catch {
+      const errorMsg = currentTexts.unexpectedError;
+      setErrors({ general: errorMsg });
+      toast.error(errorMsg);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col-reverse md:flex-row w-full h-screen bg-gray-950">
-      {/* Left Image */}
-      <div className="w-full md:w-1/2 relative h-[250px] md:h-screen group">
+    <div className={`flex flex-col-reverse md:flex-row h-screen w-full ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
+      {/* Left image section */}
+      <div className="w-full md:w-1/2 relative h-[280px] md:h-screen group">
         <img
           src="/background.jpg"
-          alt="Background"
+          alt="background"
           className="w-full h-full object-cover transition duration-300 brightness-90 group-hover:brightness-110"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-black opacity-20" />
+        <div className="absolute inset-0 bg-black opacity-20 pointer-events-none group-hover:opacity-0 transition duration-300" />
       </div>
 
-      {/* Form Section */}
-      <section className="w-full md:w-1/2 flex flex-col justify-start px-4 py-4 md:py-8 md:px-10 h-screen">
-        <div className="w-full max-w-[600px] bg-[#1a1f27] p-6 rounded-xl shadow-2xl mx-auto h-full flex flex-col">
-          <nav className="mb-6">
-            <ul className="flex space-x-4 text-white text-sm md:text-base">
-              <li>
-                <Link
-                  to="/login"
-                  className="text-gray-400 hover:text-white transition"
-                >
-                  Login
-                </Link>
-              </li>
-              <li>
-                <Link to="/register" className="text-orange-500 font-bold">
-                  Registration
-                </Link>
-              </li>
-            </ul>
+      {/* Right form section */}
+      <div className="w-full md:w-1/2 flex flex-col justify-center px-6 py-6 md:py-12 md:px-16 h-auto md:h-screen md:overflow-hidden overflow-auto">
+        <div className={`w-full max-w-[600px] p-6 md:p-8 rounded-xl shadow-2xl mx-auto ${theme === "dark" ? "bg-[#1a1f27]" : "bg-white"} max-h-full md:max-h-none overflow-y-auto md:overflow-visible`}>
+          
+          {/* Header navigation */}
+          <nav className="mb-8 flex justify-between text-sm md:text-base">
+            <div className="flex space-x-6">
+              <Link 
+                to="/login" 
+                className={`${theme === "dark" ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-800"} transition`}
+              >
+                {currentTexts.login}
+              </Link>
+              <span className="text-orange-500 font-bold">{currentTexts.registration}</span>
+            </div>
           </nav>
 
-          <header>
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-              Good Morning!
-            </h1>
-            <p className="text-sm text-gray-400 mb-4">
-              Create your new account below.
-            </p>
-          </header>
+          {/* Header */}
+          <h1 className={`text-3xl md:text-4xl font-bold mb-2 ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+            {currentTexts.goodMorning}
+          </h1>
+          <p className={`${theme === "dark" ? "text-gray-400" : "text-gray-600"} mb-6`}>
+            {currentTexts.createAccount}
+          </p>
 
-          {/* Avatar Upload */}
-          <div className="flex justify-center mb-4">
+          {/* General error */}
+          {errors.general && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              {errors.general}
+            </div>
+          )}
+
+          {/* تحميل الصورة */}
+          <div className="flex justify-center mb-6">
             <label htmlFor="imageUpload" className="relative cursor-pointer group">
               {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-20 h-20 rounded-full object-cover border-2 border-orange-500"
-                />
+                <img src={imagePreview} alt="Preview" className="w-20 h-20 rounded-full object-cover border-2 border-orange-500" />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-[#2b313a] border-2 border-dashed border-gray-500 flex items-center justify-center">
-                  <span className="text-white text-2xl group-hover:text-orange-500">
+                <div
+                  className={`w-20 h-20 rounded-full border-2 border-dashed border-gray-500 flex items-center justify-center ${
+                    theme === "dark" ? "bg-[#2b313a]" : "bg-gray-100"
+                  }`}
+                >
+                  <span className={`text-2xl group-hover:text-orange-500 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                     +
                   </span>
                 </div>
               )}
-              <input
-                type="file"
-                id="imageUpload"
-                name="avatar"
-                accept="image/*"
-                onChange={handleChange}
-                className="hidden"
-              />
+              <input type="file" id="imageUpload" name="avatar" accept="image/*" onChange={handleChange} className="hidden" />
             </label>
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4 flex-grow overflow-hidden"
-            noValidate
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputField
-                label="First Name"
+                label={currentTexts.firstName}
                 id="firstName"
                 name="firstName"
                 type="text"
                 value={formData.firstName}
                 onChange={handleChange}
                 error={errors.firstName}
+                disabled={isLoading}
               />
               <InputField
-                label="Last Name"
+                label={currentTexts.lastName}
                 id="lastName"
                 name="lastName"
                 type="text"
                 value={formData.lastName}
                 onChange={handleChange}
-                error={errors.lastName} 
+                error={errors.lastName}
+                disabled={isLoading}
               />
             </div>
 
             <InputField
-              label="Email"
+              label={currentTexts.email}
               id="email"
               name="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
               error={errors.email}
+              disabled={isLoading}
             />
 
             <PasswordField
-              label="Password"
+              label={currentTexts.password}
               id="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               showPassword={showPassword}
-              toggleShowPassword={() => setShowPassword((prev) => !prev)}
+              toggleShowPassword={() => setShowPassword((p) => !p)}
               error={errors.password}
+              disabled={isLoading}
+            />
+
+            <PasswordField
+              label={currentTexts.confirmPassword}
+              id="confirmPassword"
+              name="confirmPassword"
+              value={formData.confirmPassword || ""}
+              onChange={handleChange}
+              showPassword={showConfirmPassword}
+              toggleShowPassword={() => setShowConfirmPassword((p) => !p)}
+              error={errors.confirmPassword}
+              disabled={isLoading}
             />
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full px-4 py-2 bg-orange-500 text-white font-bold rounded hover:bg-orange-600 transition duration-300 text-lg cursor-pointer disabled:opacity-50"
+              className="cursor-pointer w-full px-4 py-3 bg-orange-500 text-white font-bold rounded hover:bg-orange-600 disabled:bg-orange-400 transition duration-300 text-lg flex items-center justify-center gap-2"
             >
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <svg
-                    className="animate-spin h-5 w-5 text-white"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    />
-                  </svg>
-                  Registering...
-                </div>
-              ) : (
-                "Register"
-              )}
+              {isLoading ? currentTexts.registering : currentTexts.register}
             </button>
           </form>
 
-          <footer className="mt-6 flex items-center text-gray-400 text-xs md:text-sm">
-            <div className="flex items-center space-x-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M10 12a2 2 0 100-4 2 2 0 000 4zm0 1a3 3 0 100-6 3 3 0 000 6z" />
-                <path
-                  fillRule="evenodd"
-                  d="M0 8a8 8 0 1116 0 8 8 0 01-16 0zm10 10H6a2 2 0 110-4h8a2 2 0 110 4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <span className="font-medium">ReserGo</span>
-            </div>
-          </footer>
+         
         </div>
-      </section>
+      </div>
     </div>
   );
 };

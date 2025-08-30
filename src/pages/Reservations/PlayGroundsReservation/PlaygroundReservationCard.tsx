@@ -63,9 +63,16 @@ const PlaygroundReservationCard: React.FC<Props> = ({ reservation, onCancel }) =
   // جلب معلومات الملعب من الـ API
   useEffect(() => {
     let mounted = true;
-    apiService.getItem('playground', reservation.play_ground_id).then((data) => {
-      if (mounted) setPlayground(data[0] ?? null); // API بيرجع array
-    });
+    async function fetchPlayground() {
+      try {
+        const data = await apiService.getItem('playground', reservation.play_ground_id);
+        if (mounted) setPlayground(data ?? null); // ✅ بدون [0]
+        console.log('Fetched playground data:', data);
+      } catch (err) {
+        console.error('Failed to fetch playground:', err);
+      }
+    }
+    fetchPlayground();
     return () => { mounted = false; };
   }, [reservation.play_ground_id]);
 

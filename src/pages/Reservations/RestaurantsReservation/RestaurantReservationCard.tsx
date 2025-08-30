@@ -1,13 +1,13 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { FaUtensils, FaClock, FaUsers, FaMapMarkerAlt } from 'react-icons/fa';
-import type { RestaurantReservation } from '../../../types/restaurants';
+import type { RestaurantReservation, Restaurant } from '../../../types';
 import InfoRow from '../../../components/Reservation/infoRow';
 import StatusBadge from '../../../components/Reservation/StatusBadge';
 
 import { useLanguage } from '../../../context/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
+import { apiService } from '../../../services/apiService';
 
-// ==== الترجمات ====
 const translations = {
   ar: {
     title: "حجز مطعم",
@@ -18,6 +18,7 @@ const translations = {
     outdoorTerrace: "تراس خارجي",
     notSpecified: "غير محدد",
     cancelBooking: "إلغاء الحجز",
+    location: "الموقع",
   },
   en: {
     title: "Restaurant Reservation",
@@ -28,6 +29,7 @@ const translations = {
     outdoorTerrace: "Outdoor Terrace",
     notSpecified: "Not Specified",
     cancelBooking: "Cancel Booking",
+    location: "Location",
   },
 };
 
@@ -39,7 +41,8 @@ interface Props {
 const RestaurantReservationCard: React.FC<Props> = ({ reservation, onCancel }) => {
   const { language } = useLanguage();
   const { theme } = useTheme();
-  
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+
   const t = useCallback(
     (key: keyof typeof translations['en']) => translations[language][key] || key,
     [language]
@@ -64,60 +67,58 @@ const RestaurantReservationCard: React.FC<Props> = ({ reservation, onCancel }) =
     return t('notSpecified');
   };
 
+  // ====== جلب بيانات المطعم إذا الاسم غير موجود ======
+  useEffect(() => {
+    async function fetchRestaurant() {
+      try {
+        const data = await apiService.getItem('restaurant', reservation.restaurant_id);
+        setRestaurant(data);
+      } catch (err) {
+        console.error('Failed to fetch restaurant:', err);
+      }
+    }
+    if (!reservation.restaurant_ar_title && !reservation.restaurant_en_title) {
+      fetchRestaurant();
+    }
+  }, [reservation.restaurant_id, reservation.restaurant_ar_title, reservation.restaurant_en_title]);
+
+  // ====== الاسم والموقع للعرض ======
+  const displayName =
+    reservation.restaurant_ar_title ||
+    reservation.restaurant_en_title ||
+    (restaurant ? (language === 'ar' ? restaurant.ar_title : restaurant.en_title) : t('title'));
+
+  const displayLocation =
+    restaurant ? (language === 'ar' ? restaurant.ar_location : restaurant.en_location) : '–';
+
   return (
     <div
       className={`border rounded-xl p-5 transition-all hover:shadow-xl ${
         theme === 'dark'
-          ? 'bg-gray-800/50 border-gray-700 hover:border-orange-500/50'
-          : 'bg-white border-gray-200 hover:border-orange-300'
+          ? 'bg-gray-800/50 border-gray-700 hover:border-orange-500/50 text-white'
+          : 'bg-white border-gray-200 hover:border-orange-300 text-black'
       }`}
     >
       {/* ====== العنوان والحالة ====== */}
-      <div
-        className={`flex justify-between items-start mb-4 pb-4 border-b ${
-          theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
-        }`}
-      >
-        <h3
-          className={`text-lg md:text-xl font-bold flex items-center gap-3 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}
-        >
-          <FaUtensils />
-          {language === 'ar'
-            ? reservation.restaurant_ar_title
-            : reservation.restaurant_en_title || t('title')}
+      <div className="flex justify-between items-start mb-4 pb-4 border-b">
+        <h3 className="text-lg md:text-xl font-bold flex items-center gap-3">
+          <FaUtensils /> {displayName}
         </h3>
         <StatusBadge status={reservation.status} />
       </div>
 
       {/* ====== التفاصيل ====== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-2">
-        <InfoRow
-          icon={<FaClock />}
-          label={t('dateTime')}
-          value={`${date} - ${time}`}
-        />
-        <InfoRow
-          icon={<FaUsers />}
-          label={t('guests')}
-          value={reservation.guests}
-        />
+        <InfoRow icon={<FaClock />} label={t('dateTime')} value={`${date} - ${time}`} />
+        <InfoRow icon={<FaUsers />} label={t('guests')} value={reservation.guests} />
         {reservation.area_type && (
-          <InfoRow
-            icon={<FaMapMarkerAlt />}
-            label={t('seatingArea')}
-            value={getAreaText(reservation.area_type)}
-          />
+          <InfoRow icon={<FaMapMarkerAlt />} label={t('seatingArea')} value={getAreaText(reservation.area_type)} />
         )}
+        <InfoRow icon={<FaMapMarkerAlt />} label={t('location')} value={displayLocation} />
       </div>
 
       {/* ====== زر الإلغاء ====== */}
-      <div
-        className={`mt-5 pt-5 border-t text-right ${
-          theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
-        }`}
-      >
+      <div className="mt-5 pt-5 border-t text-right">
         <button
           onClick={() => onCancel(reservation.id)}
           disabled={!canCancel}

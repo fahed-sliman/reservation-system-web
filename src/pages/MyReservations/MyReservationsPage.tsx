@@ -116,8 +116,15 @@ const MyReservationsPage: React.FC = () => {
     fetchReservations();
   }, [fetchReservations]);
 
-  // إلغاء الحجز مع toast بدل alert
+  // إلغاء الحجز
   const handleCancelReservation = async (type: string, id: number) => {
+    // ✅ إضافة فحص للتأكد من وجود ID
+    if (!id || id === undefined) {
+      console.error('Cannot cancel reservation: ID is undefined');
+      toast.error('خطأ: معرف الحجز غير موجود');
+      return;
+    }
+
     if (!isAuthenticated || !token) {
       toast.error(t('unauthorized'));
       return;
@@ -158,15 +165,46 @@ const MyReservationsPage: React.FC = () => {
   // تحضير بيانات العرض
   const displayedReservations = useMemo(() => {
     if (!reservations) return [];
+    
+    // ✅ إضافة فحص أفضل لمعرفات الحجوزات
     const all = [
-      ...(reservations.hotel_reservations?.map(r => ({ ...r, type: 'hotel' as const, display_id: r.reservation_id ?? Math.random(), sort_date: r.start_date })) || []),
-      ...(reservations.restaurant_reservations?.map(r => ({ ...r, type: 'restaurant' as const, display_id: r.id ?? Math.random(), sort_date: r.reservation_time })) || []),
-      ...(reservations.tour_reservations?.map(r => ({ ...r, type: 'tour' as const, display_id: r.id ?? Math.random(), sort_date: r.start_date })) || []),
-      ...(reservations.play_ground_reservations?.map(r => ({ ...r, type: 'playground' as const, display_id: r.id ?? Math.random(), sort_date: r.reservation_date })) || []),
-      ...(reservations.event_hall_reservations?.map(r => ({ ...r, type: 'event_hall' as const, display_id: r.id ?? Math.random(), sort_date: r.reservation_date })) || []),
+      ...(reservations.hotel_reservations?.map(r => ({ 
+        ...r, 
+        type: 'hotel' as const, 
+        display_id: r.reservation_id || r.id // ✅ استخدام fallback
+      })).filter(r => r.display_id !== undefined) || []), // ✅ تصفية العناصر بدون ID
+      
+      ...(reservations.restaurant_reservations?.map(r => ({ 
+        ...r, 
+        type: 'restaurant' as const, 
+        display_id: r.id 
+      })).filter(r => r.display_id !== undefined) || []),
+      
+      ...(reservations.tour_reservations?.map(r => ({ 
+        ...r, 
+        type: 'tour' as const, 
+        display_id: r.id 
+      })).filter(r => r.display_id !== undefined) || []),
+      
+      ...(reservations.play_ground_reservations?.map(r => ({ 
+        ...r, 
+        type: 'playground' as const, 
+        display_id: r.id 
+      })).filter(r => r.display_id !== undefined) || []),
+      
+      ...(reservations.event_hall_reservations?.map(r => ({ 
+        ...r, 
+        type: 'event_hall' as const, 
+        display_id: r.id 
+      })).filter(r => r.display_id !== undefined) || []),
     ];
 
-    if (activeTab === 'all') return all.sort((a,b) => new Date(b.sort_date).getTime() - new Date(a.sort_date).getTime());
+    if (activeTab === 'all') {
+      return all.sort((a, b) => 
+        new Date(b.sort_date || b.start_date || b.reservation_date).getTime() - 
+        new Date(a.sort_date || a.start_date || a.reservation_date).getTime()
+      );
+    }
 
     const typeMap: Record<ReservationType, string> = {
       hotels: 'hotel',
@@ -187,6 +225,10 @@ const MyReservationsPage: React.FC = () => {
       <div className="space-y-5">
         {displayedReservations.map((res: any, index) => {
           const key = `${res.type}-${res.display_id}-${index}`; // ضمان تفرد المفتاح
+          
+          // ✅ إضافة debug logging للتأكد من القيم
+          console.log(`Rendering reservation: type=${res.type}, display_id=${res.display_id}`);
+          
           switch(res.type){
             case 'hotel': return <HotelReservationCard key={key} reservation={res} onCancel={() => handleCancelReservation('hotel', res.display_id)} />;
             case 'restaurant': return <RestaurantReservationCard key={key} reservation={res} onCancel={() => handleCancelReservation('restaurant', res.display_id)} />;

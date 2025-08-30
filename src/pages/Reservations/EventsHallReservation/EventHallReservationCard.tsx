@@ -1,32 +1,48 @@
-import React, { useCallback } from 'react';
-import { FaBuilding, FaCalendarCheck, FaUsers, FaGlassCheers, FaDollarSign } from 'react-icons/fa';
+import React, { useCallback, useEffect, useState } from 'react';
+import { FaBuilding, FaCalendarCheck, FaUsers, FaGlassCheers, FaDollarSign, FaMapMarkerAlt } from 'react-icons/fa';
 import InfoRow from '../../../components/Reservation/infoRow';
 import StatusBadge from '../../../components/Reservation/StatusBadge';
-import type { EventHallReservation } from '../../../types';
+import type { EventHallReservation, EventHall } from '../../../types';
 
 import { useLanguage } from '../../../context/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
+import { apiService } from '../../../services/apiService';
+import toast from 'react-hot-toast';
 
 const translations = {
   ar: {
     title: "حجز صالة مناسبات",
+    hallName: "اسم الصالة",
     date: "التاريخ",
     eventType: "نوع المناسبة",
     guests: "عدد الضيوف",
     wedding: "زفاف",
     funeral: "عزاء",
-    cancelBooking: "إلغاء الحجز",
     price: "السعر",
+    finalPrice: "السعر النهائي",
+    payment: "طريقة الدفع",
+    location: "الموقع",
+    coupon: "كوبون مستخدم",
+    cancelBooking: "إلغاء الحجز",
+    confirmCancel: "هل أنت متأكد من إلغاء الحجز؟",
+    noCoupon: "لا يوجد",
   },
   en: {
     title: "Event Hall Reservation",
+    hallName: "Hall Name",
     date: "Date",
     eventType: "Event Type",
     guests: "Guests",
     wedding: "Wedding",
     funeral: "Funeral",
-    cancelBooking: "Cancel Booking",
     price: "Price",
+    finalPrice: "Final Price",
+    payment: "Payment",
+    location: "Location",
+    coupon: "Coupon Used",
+    cancelBooking: "Cancel Booking",
+    confirmCancel: "Are you sure you want to cancel this reservation?",
+    noCoupon: "None",
   },
 };
 
@@ -38,6 +54,8 @@ interface Props {
 const EventHallReservationCard: React.FC<Props> = ({ reservation, onCancel }) => {
   const { language } = useLanguage();
   const { theme } = useTheme();
+  const [hall, setHall] = useState<EventHall | null>(null);
+
   const t = useCallback(
     (key: keyof typeof translations['en']) => translations[language][key] || key,
     [language]
@@ -45,8 +63,27 @@ const EventHallReservationCard: React.FC<Props> = ({ reservation, onCancel }) =>
 
   const canCancel = reservation.status === 'confirmed';
 
-  // ✅ معالجة السعر بشكل آمن (تحويل string لرقم)
-  const price = reservation.price ? parseFloat(reservation.price as unknown as string) : 0;
+  // جلب بيانات الصالة عند التحميل
+  useEffect(() => {
+    async function fetchHall() {
+      try {
+        const data = await apiService.getItem('event_hall', reservation.event_hall_id);
+        setHall(data);
+        console.log('Fetched hall:', data);
+      } catch (err) {
+        console.error('Failed to fetch hall:', err);
+      }
+    }
+    fetchHall();
+  }, [reservation.event_hall_id]);
+
+  const handleCancel = () => {
+    if (!canCancel) return;
+    if (window.confirm(t('confirmCancel'))) {
+      onCancel(reservation.id);
+      toast.success(t('cancelBooking') + ' ✅');
+    }
+  };
 
   return (
     <div
@@ -62,7 +99,7 @@ const EventHallReservationCard: React.FC<Props> = ({ reservation, onCancel }) =>
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}
         >
-          <FaBuilding /> {t('title')}
+          <FaBuilding /> {hall?.[language === 'ar' ? 'ar_title' : 'en_title'] ?? t('title')}
         </h3>
         <StatusBadge status={reservation.status} />
       </div>
@@ -82,15 +119,28 @@ const EventHallReservationCard: React.FC<Props> = ({ reservation, onCancel }) =>
         <InfoRow
           icon={<FaDollarSign />}
           label={t('price')}
-          value={`${price.toFixed(2)} $`}
-          // ✅ نضيف class بحيث النص يرجع أسود بالـ light mode
-          className={theme === 'light' ? 'text-black' : 'text-white'}
+          value={`${reservation.price}$`}
+        />
+        <InfoRow
+          icon={<FaDollarSign />}
+          label={t('finalPrice')}
+          value={`${reservation.final_price}$`}
+        />
+        <InfoRow
+          icon={<FaMapMarkerAlt />}
+          label={t('location')}
+          value={hall?.[language === 'ar' ? 'ar_location' : 'en_location'] ?? '–'}
+        />
+        <InfoRow
+          icon={<FaDollarSign />}
+          label={t('coupon')}
+          value={reservation.coupons_id ?? t('noCoupon')}
         />
       </div>
 
       <div className="mt-5 text-right">
         <button
-          onClick={() => onCancel(reservation.id)}
+          onClick={handleCancel}
           disabled={!canCancel}
           className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg transition hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >

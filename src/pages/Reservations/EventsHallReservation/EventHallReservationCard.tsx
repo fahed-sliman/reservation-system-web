@@ -17,7 +17,6 @@ const translations = {
     cancelBooking: "إلغاء الحجز", noCoupon: "لا يوجد", errorFetchingHall: "فشل تحميل تفاصيل الصالة.",
     confirmCancelTitle: "تأكيد الإلغاء", confirmCancelMessage: "هل أنت متأكد أنك تريد إلغاء هذا الحجز؟",
     yesCancel: "نعم، إلغاء", noCancel: "لا، احتفاظ",
-    // bookingCancelledSuccess: "تم إلغاء الحجز بنجاح!", // سيتم عرضها من MyReservationsPage
   },
   en: {
     title: "Event Hall Reservation", hallName: "Hall Name", date: "Date", eventType: "Event Type",

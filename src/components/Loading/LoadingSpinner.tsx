@@ -37,7 +37,7 @@ const LoadingSpinner: React.FC = () => {
           <h2 className={`text-2xl font-bold transition-colors duration-300 ${
             theme === 'dark' ? 'text-white' : 'text-gray-800'
           }`}>
-            Resser<span className="text-orange-500">Go</span>
+            Mahjo<span className="text-orange-500">oz</span>
           </h2>
         </div>
       </div>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import Footer from '../../components/Footer/Footer';
-import Header from '../../components/Header/header';
+import Layout from '../../layout/Layout';
 import type { UserReservationsResponse, ReservationType } from '../../types';
 import EventHallReservationCard from '../Reservations/EventsHallReservation/EventHallReservationCard';
 import HotelReservationCard from '../Reservations/HotelsReservation/HotelReservationCard';
@@ -80,7 +79,6 @@ const MyReservationsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ReservationType | 'all'>('all');
 
-  // جلب الحجوزات
   const fetchReservations = useCallback(async () => {
     if (!isAuthenticated || !token) {
       setError(t('unauthorized'));
@@ -116,94 +114,74 @@ const MyReservationsPage: React.FC = () => {
     fetchReservations();
   }, [fetchReservations]);
 
-  // إلغاء الحجز
-  const handleCancelReservation = async (type: string, id: number) => {
-    // ✅ إضافة فحص للتأكد من وجود ID
-    if (!id || id === undefined) {
-      console.error('Cannot cancel reservation: ID is undefined');
-      toast.error('خطأ: معرف الحجز غير موجود');
-      return;
-    }
+    const handleCancelReservation = async (type: string, id: number) => {
+  if (!id || id === undefined) {
+    toast.error('⚠️ خطأ: معرف الحجز غير موجود');
+    return;
+  }
 
-    if (!isAuthenticated || !token) {
-      toast.error(t('unauthorized'));
-      return;
-    }
+  if (!isAuthenticated || !token) {
+    toast.error(t('unauthorized'));
+    return;
+  }
 
-    toast.promise(
-      (async () => {
-        const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
-        const res = await fetch(`${API_ENDPOINTS.reservations}/cancel?type=${type}&id=${id}`, { headers });
-        const data = await res.json();
+  toast.promise(
+    (async () => {
+      const headers = { 
+        Accept: 'application/json', 
+        Authorization: `Bearer ${token}` 
+      };
 
-        if (res.ok) {
-          setReservations(prev => {
-            if (!prev) return null;
-            const keyMap: Record<string, keyof UserReservationsResponse['data']> = {
-              hotel: 'hotel_reservations',
-              restaurant: 'restaurant_reservations',
-              tour: 'tour_reservations',
-              playground: 'play_ground_reservations',
-              event_hall: 'event_hall_reservations',
-            };
-            const reservationKey = keyMap[type];
-            const updatedList = prev[reservationKey]?.filter(r => (r.id ?? r.reservation_id) !== id);
-            return { ...prev, [reservationKey]: updatedList };
-          });
-        } else {
-          throw new Error(data.message || t('cancelError'));
-        }
-      })(),
-      {
-        loading: t('cancelConfirm'),
-        success: t('cancelSuccess'),
-        error: t('cancelError'),
+      const res = await fetch(
+        `${API_ENDPOINTS.reservations}/cancel?type=${type}&id=${id}`, 
+        { headers }
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        // ✅ نجاح: حدث قائمة الحجوزات
+        setReservations(prev => {
+          if (!prev) return null;
+          const keyMap: Record<string, keyof UserReservationsResponse['data']> = {
+            hotel: 'hotel_reservations',
+            restaurant: 'restaurant_reservations',
+            tour: 'tour_reservations',
+            playground: 'play_ground_reservations',
+            event_hall: 'event_hall_reservations',
+          };
+          const reservationKey = keyMap[type];
+          const updatedList = prev[reservationKey]
+            ?.filter(r => (r.id ?? r.reservation_id) !== id);
+          return { ...prev, [reservationKey]: updatedList };
+        });
+        return data.message || t('cancelSuccess'); // 👈 نعرض رسالة السيرفر أو النص المترجم
+      } else {
+        // ❌ خطأ: نرمي رسالة السيرفر ليعرضها toast
+        throw new Error(data.message || t('cancelError'));
       }
-    );
-  };
+    })(),
+    {
+      loading: t('cancelConfirm'),
+      success: (msg) => msg,     // 👈 يعرض النص اللي رجع من promise
+      error:   (err) => err.message, // 👈 يعرض رسالة الخطأ الحقيقية من API
+    }
+  );
+};
 
-  // تحضير بيانات العرض
+
   const displayedReservations = useMemo(() => {
     if (!reservations) return [];
     
-    // ✅ إضافة فحص أفضل لمعرفات الحجوزات
     const all = [
-      ...(reservations.hotel_reservations?.map(r => ({ 
-        ...r, 
-        type: 'hotel' as const, 
-        display_id: r.reservation_id || r.id // ✅ استخدام fallback
-      })).filter(r => r.display_id !== undefined) || []), // ✅ تصفية العناصر بدون ID
-      
-      ...(reservations.restaurant_reservations?.map(r => ({ 
-        ...r, 
-        type: 'restaurant' as const, 
-        display_id: r.id 
-      })).filter(r => r.display_id !== undefined) || []),
-      
-      ...(reservations.tour_reservations?.map(r => ({ 
-        ...r, 
-        type: 'tour' as const, 
-        display_id: r.id 
-      })).filter(r => r.display_id !== undefined) || []),
-      
-      ...(reservations.play_ground_reservations?.map(r => ({ 
-        ...r, 
-        type: 'playground' as const, 
-        display_id: r.id 
-      })).filter(r => r.display_id !== undefined) || []),
-      
-      ...(reservations.event_hall_reservations?.map(r => ({ 
-        ...r, 
-        type: 'event_hall' as const, 
-        display_id: r.id 
-      })).filter(r => r.display_id !== undefined) || []),
+      ...(reservations.hotel_reservations?.map(r => ({ ...r, type: 'hotel' as const, display_id: r.reservation_id || r.id })).filter(r => r.display_id !== undefined) || []),
+      ...(reservations.restaurant_reservations?.map(r => ({ ...r, type: 'restaurant' as const, display_id: r.id })).filter(r => r.display_id !== undefined) || []),
+      ...(reservations.tour_reservations?.map(r => ({ ...r, type: 'tour' as const, display_id: r.id })).filter(r => r.display_id !== undefined) || []),
+      ...(reservations.play_ground_reservations?.map(r => ({ ...r, type: 'playground' as const, display_id: r.id })).filter(r => r.display_id !== undefined) || []),
+      ...(reservations.event_hall_reservations?.map(r => ({ ...r, type: 'event_hall' as const, display_id: r.id })).filter(r => r.display_id !== undefined) || []),
     ];
 
     if (activeTab === 'all') {
-      return all.sort((a, b) => 
-        new Date(b.sort_date || b.start_date || b.reservation_date).getTime() - 
-        new Date(a.sort_date || a.start_date || a.reservation_date).getTime()
-      );
+      return all.sort((a, b) => new Date(b.sort_date || b.start_date || b.reservation_date).getTime() - new Date(a.sort_date || a.start_date || a.reservation_date).getTime());
     }
 
     const typeMap: Record<ReservationType, string> = {
@@ -224,11 +202,8 @@ const MyReservationsPage: React.FC = () => {
     return (
       <div className="space-y-5">
         {displayedReservations.map((res: any, index) => {
-          const key = `${res.type}-${res.display_id}-${index}`; // ضمان تفرد المفتاح
-          
-          // ✅ إضافة debug logging للتأكد من القيم
+          const key = `${res.type}-${res.display_id}-${index}`;
           console.log(`Rendering reservation: type=${res.type}, display_id=${res.display_id}`);
-          
           switch(res.type){
             case 'hotel': return <HotelReservationCard key={key} reservation={res} onCancel={() => handleCancelReservation('hotel', res.display_id)} />;
             case 'restaurant': return <RestaurantReservationCard key={key} reservation={res} onCancel={() => handleCancelReservation('restaurant', res.display_id)} />;
@@ -243,22 +218,22 @@ const MyReservationsPage: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${theme==='dark'?'bg-gray-900 text-white':'bg-gray-50 text-gray-900'}`}>
-      <Header />
-      <main className="max-w-5xl mx-auto py-28 px-4">
-        <h1 className={`text-4xl font-extrabold text-center mb-4 ${theme==='dark'?'text-white':'text-gray-900'}`}>{t('pageTitle')}</h1>
-        <p className={`text-center mb-12 ${theme==='dark'?'text-gray-400':'text-gray-600'}`}>{t('pageDescription')}</p>
-        
-        <div className="mb-8 flex justify-center flex-wrap gap-2">
-          {TABS.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`cursor-pointer px-5 py-2 font-semibold rounded-full transition-colors duration-300 ${activeTab===tab.id?'bg-orange-600 text-white shadow-lg':(theme==='dark'?'bg-gray-800 text-gray-300 hover:bg-gray-700':'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200')}`}>{tab.label}</button>
-          ))}
-        </div>
+    <Layout>
+      <div className={`min-h-screen transition-colors duration-500 ${theme==='dark'?'bg-gray-900 text-white':'bg-gray-50 text-gray-900'}`}>
+        <main className="max-w-5xl mx-auto py-28 px-4">
+          <h1 className={`text-4xl font-extrabold text-center mb-4 ${theme==='dark'?'text-white':'text-gray-900'}`}>{t('pageTitle')}</h1>
+          <p className={`text-center mb-12 ${theme==='dark'?'text-gray-400':'text-gray-600'}`}>{t('pageDescription')}</p>
+          
+          <div className="mb-8 flex justify-center flex-wrap gap-2">
+            {TABS.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`cursor-pointer px-5 py-2 font-semibold rounded-full transition-colors duration-300 ${activeTab===tab.id?'bg-orange-600 text-white shadow-lg':(theme==='dark'?'bg-gray-800 text-gray-300 hover:bg-gray-700':'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200')}`}>{tab.label}</button>
+            ))}
+          </div>
 
-        {renderContent()}
-      </main>
-      <Footer />
-    </div>
+          {renderContent()}
+        </main>
+      </div>
+    </Layout>
   );
 };
 

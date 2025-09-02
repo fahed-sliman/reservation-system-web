@@ -31,7 +31,7 @@ const translations = {
     couponPlaceholder: "أدخل الكود هنا",
     submitButton: "تأكيد الحجز",
     submittingButton: "جاري التأكيد...",
-    successMessage: "تم إرسال طلب حجز الرحلة بنجاخ!",
+    successMessage: " إرسال طلب حجز الرحلة بنجاح!",
     errorMessage: "عذراً، حدث خطأ أثناء إرسال الحجز.",
     guestsRequired: "يجب أن يكون عدد المسافرين شخصاً واحداً على الأقل.",
     loginRequired: "يجب تسجيل الدخول أولاً لإتمام الحجز.",

@@ -203,7 +203,6 @@ const MyReservationsPage: React.FC = () => {
       <div className="space-y-5">
         {displayedReservations.map((res: any, index) => {
           const key = `${res.type}-${res.display_id}-${index}`;
-          console.log(`Rendering reservation: type=${res.type}, display_id=${res.display_id}`);
           switch(res.type){
             case 'hotel': return <HotelReservationCard key={key} reservation={res} onCancel={() => handleCancelReservation('hotel', res.display_id)} />;
             case 'restaurant': return <RestaurantReservationCard key={key} reservation={res} onCancel={() => handleCancelReservation('restaurant', res.display_id)} />;

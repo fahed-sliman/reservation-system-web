@@ -22,7 +22,7 @@ const translations = {
     address: "دمشق، سوريا",
     email: "contact@mahjoozTeam",
     developersTitle: "فريق التطوير",
-    developers: ["فهد سليمان-فرومت اند", "محمد الغزالي-فرومت اند", "ايمن مملوك -باك اند", "ممحد الرفاعي -باك اند"],
+    developers: ["فهد سليمان-فرونت اند", "محمد الغزالي-فرونت اند", "ايمن مملوك -باك اند", "ممحد الرفاعي -باك اند"],
     copyright: `© ${new Date().getFullYear()} mahjooz. جميع الحقوق محفوظة.`
   },
   en: {

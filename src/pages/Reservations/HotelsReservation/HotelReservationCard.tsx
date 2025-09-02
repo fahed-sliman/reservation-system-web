@@ -1,6 +1,8 @@
+
 import React, { useCallback, useEffect, useState } from 'react';
-import { 
-  FaCalendarAlt, FaMoon, FaBuilding, FaCreditCard, FaDollarSign, FaMapMarkerAlt 
+import {
+  FaCalendarAlt, FaMoon, FaBuilding, FaCreditCard, FaDollarSign, FaMapMarkerAlt,
+  FaExclamationTriangle // ✅ أيقونة جديدة
 } from 'react-icons/fa';
 import type { HotelReservation, Hotel } from '../../../types';
 import InfoRow from '../../../components/Reservation/infoRow';
@@ -13,32 +15,28 @@ import toast from 'react-hot-toast';
 
 const translations = {
   ar: {
-    title: "حجز فندق",
-    hotelName: "اسم الفندق",
-    arrivalDate: "تاريخ الوصول",
-    nightsCount: "عدد الليالي",
-    nights: "ليالي",
-    paymentMethod: "طريقة الدفع",
-    price: "السعر",
-    finalPrice: "السعر النهائي",
-    cancelBooking: "إلغاء الحجز",
+    title: "حجز فندق", hotelName: "اسم الفندق", arrivalDate: "تاريخ الوصول",
+    nightsCount: "عدد الليالي", nights: "ليالي", paymentMethod: "طريقة الدفع",
+    price: "السعر", finalPrice: "السعر النهائي", cancelBooking: "إلغاء الحجز",
+    errorFetchingHotel: "فشل تحميل تفاصيل الفندق.",
+    confirmCancelTitle: "تأكيد الإلغاء", confirmCancelMessage: "هل أنت متأكد أنك تريد إلغاء هذا الحجز؟",
+    yesCancel: "نعم، إلغاء", noCancel: "لا، احتفاظ",
+    // bookingCancelledSuccess: "تم إلغاء الحجز بنجاح!", // سيتم عرضها من MyReservationsPage
   },
   en: {
-    title: "Hotel Reservation",
-    hotelName: "Hotel Name",
-    arrivalDate: "Arrival Date",
-    nightsCount: "Number of Nights",
-    nights: "Nights",
-    paymentMethod: "Payment Method",
-    price: "Price",
-    finalPrice: "Final Price",
-    cancelBooking: "Cancel Booking",
+    title: "Hotel Reservation", hotelName: "Hotel Name", arrivalDate: "Arrival Date",
+    nightsCount: "Number of Nights", nights: "Nights", paymentMethod: "Payment Method",
+    price: "Price", finalPrice: "Final Price", cancelBooking: "Cancel Booking",
+    errorFetchingHotel: "Failed to load hotel details.",
+    confirmCancelTitle: "Confirm Cancellation", confirmCancelMessage: "Are you sure you want to cancel this reservation?",
+    yesCancel: "Yes, Cancel", noCancel: "No, Keep",
+    // bookingCancelledSuccess: "Booking cancelled successfully!", // Will be shown from MyReservationsPage
   },
 };
 
 interface Props {
   reservation: HotelReservation;
-  onCancel: (id: number) => void;
+  onCancel: (id: number) => void; // وظيفة الإلغاء تأتي من الصفحة الرئيسية
 }
 
 const HotelReservationCard: React.FC<Props> = ({ reservation, onCancel }) => {
@@ -53,30 +51,65 @@ const HotelReservationCard: React.FC<Props> = ({ reservation, onCancel }) => {
 
   const canCancel = reservation.status === 'confirmed';
 
-  // 🔹 جلب بيانات الفندق إذا الاسم غير موجود
   useEffect(() => {
     async function fetchHotel() {
       try {
-        const data = await apiService.getItem('hotel', reservation.hotel_id); // أو reservation.id للفندق حسب API
+        const data = await apiService.getItem('hotel', reservation.hotel_id);
         setHotel(data);
       } catch (err) {
         console.error('Failed to fetch hotel:', err);
+        toast.error(t('errorFetchingHotel'));
       }
     }
     if (!reservation.hotel_name) {
       fetchHotel();
     }
-  }, [reservation.hotel_id, reservation.hotel_name]);
+  }, [reservation.hotel_id, reservation.hotel_name, t]);
+
+  const handleCancelClick = useCallback(() => {
+    toast((toastInstance) => (
+      <div
+        className={`relative flex flex-col items-center p-6 shadow-xl rounded-lg border max-w-sm w-full
+          ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-900'}
+          ${toastInstance.visible ? 'animate-enter' : 'animate-out'} `}
+      >
+        <div className="flex items-center justify-center mb-4">
+          <FaExclamationTriangle className="text-yellow-500 text-4xl" />
+        </div>
+        <h3 className={`text-xl font-bold mb-2 text-center ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          {t('confirmCancelTitle')}
+        </h3>
+        <p className={`text-sm mb-6 text-center ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+          {t('confirmCancelMessage')}
+        </p>
+        <div className="flex justify-center w-full gap-4">
+          <button
+            onClick={() => toast.dismiss(toastInstance.id)}
+            className={`cursor-pointer px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-md
+              ${theme === 'dark' ? 'bg-gray-600 border border-gray-500 hover:bg-gray-500' : 'bg-gray-200 border border-gray-300 hover:bg-gray-300 text-gray-800'} `}
+          >
+            {t('noCancel')}
+          </button>
+          <button
+            onClick={() => {
+              toast.dismiss(toastInstance.id);
+              onCancel(reservation.reservation_id);
+            }}
+            className="cursor-pointer px-5 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 shadow-md transition-colors"
+          >
+            {t('yesCancel')}
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity });
+  }, [reservation.reservation_id, onCancel, t, theme]);
 
   return (
     <div
       className={`border rounded-xl p-5 transition-all hover:shadow-xl ${
-        theme === 'dark'
-          ? 'bg-gray-800/50 border-gray-700 hover:border-orange-500/50 text-white'
-          : 'bg-white border-gray-200 hover:border-orange-300 text-black'
+        theme === 'dark' ? 'bg-gray-800/50 border-gray-700 hover:border-orange-500/50 text-white' : 'bg-white border-gray-200 hover:border-orange-300 text-black'
       }`}
     >
-      {/* العنوان والحالة */}
       <div className={`flex justify-between items-start mb-4 pb-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
         <h3 className={`text-lg md:text-xl font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
           <FaBuilding /> {hotel?.[language === 'ar' ? 'ar_title' : 'en_title'] ?? reservation.hotel_name ?? t('title')}
@@ -84,8 +117,7 @@ const HotelReservationCard: React.FC<Props> = ({ reservation, onCancel }) => {
         <StatusBadge status={reservation.status} />
       </div>
 
-      {/* التفاصيل */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-2">
+      <div className="grid grid-cols-1 sm:grid-grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-2">
         <InfoRow icon={<FaCalendarAlt />} label={t('arrivalDate')} value={reservation.start_date} />
         <InfoRow icon={<FaMoon />} label={t('nightsCount')} value={`${reservation.nights} ${t('nights')}`} />
         {reservation.payment_method && <InfoRow icon={<FaCreditCard />} label={t('paymentMethod')} value={reservation.payment_method} />}
@@ -94,12 +126,11 @@ const HotelReservationCard: React.FC<Props> = ({ reservation, onCancel }) => {
         {hotel && <InfoRow icon={<FaMapMarkerAlt />} label={t('hotelName')} value={hotel?.[language === 'ar' ? 'ar_location' : 'en_location'] ?? '–'} />}
       </div>
 
-      {/* زر الإلغاء */}
       <div className={`mt-5 pt-5 border-t text-right ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
         <button
-          onClick={() => onCancel(reservation.reservation_id)}
+          onClick={canCancel ? handleCancelClick : undefined}
           disabled={!canCancel}
-          className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg transition hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+          className=" cursor-pointer px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg transition hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('cancelBooking')}
         </button>

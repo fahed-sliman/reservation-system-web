@@ -58,45 +58,52 @@ const EventHallReservationCard: React.FC<Props> = ({ reservation, onCancel }) =>
     }
     fetchHall();
   }, [reservation.event_hall_id, t]);
-
-  const handleCancelClick = useCallback(() => {
+const handleCancelClick = useCallback(() => {
     toast((toastInstance) => (
       <div
-        className={`relative flex flex-col items-center p-6 shadow-xl rounded-lg border max-w-sm w-full
-          ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-900'}
-          ${toastInstance.visible ? 'animate-enter' : 'animate-out'} `}
+        className={`relative flex w-full max-w-sm flex-col items-center rounded-lg border p-6 shadow-xl
+          ${theme === 'dark' ? 'border-gray-600 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'}
+        `}
       >
-        <div className="flex items-center justify-center mb-4">
-          <FaExclamationTriangle className="text-yellow-500 text-4xl" /> {/* أيقونة التحذير */}
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/10">
+          <FaExclamationTriangle className="text-3xl text-yellow-500" />
         </div>
-        <h3 className={`text-xl font-bold mb-2 text-center ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+        <h3 className={`mb-2 text-center text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
           {t('confirmCancelTitle')}
         </h3>
-        <p className={`text-sm mb-6 text-center ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+        <p className={`mb-6 text-center text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
           {t('confirmCancelMessage')}
         </p>
-        <div className="flex justify-center w-full gap-4"> {/* أزرار في المنتصف */}
+        <div className="flex w-full justify-center gap-4">
           <button
             onClick={() => toast.dismiss(toastInstance.id)}
-            className={`cursor-pointer px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-md
-              ${theme === 'dark' ? 'bg-gray-600 border border-gray-500 hover:bg-gray-500' : 'bg-gray-200 border border-gray-300 hover:bg-gray-300 text-gray-800'} `}
+            className={`w-full cursor-pointer rounded-lg px-5 py-2 text-sm font-medium transition-colors
+              ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}
+            `}
           >
             {t('noCancel')}
           </button>
           <button
             onClick={() => {
               toast.dismiss(toastInstance.id);
-              onCancel(reservation.id); // استدعاء الوظيفة من الصفحة الرئيسية
-              // لا نعرض toast.success هنا
+              onCancel(reservation.id); // ✨ الاختلاف الوحيد هنا
             }}
-            className="cursor-pointer px-5 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 shadow-md transition-colors"
+            className="w-full cursor-pointer rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 shadow-md"
           >
             {t('yesCancel')}
           </button>
         </div>
       </div>
-    ), { duration: Infinity });
-  }, [reservation.id, onCancel, t, theme]);
+    ), { 
+      duration: Infinity,
+      style: {
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+        boxShadow: 'none',
+      }
+    });
+  }, [reservation.id, onCancel, t, theme]); // ✨ وهنا أيضاً```
 
   return (
     <div

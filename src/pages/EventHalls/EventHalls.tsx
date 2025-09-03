@@ -1,4 +1,3 @@
-// src/pages/EventHalls/EventHallsPage.tsx
 import { useState, useEffect, useCallback } from "react";
 import ItemCard from "../../components/MinCard/ItemCard";
 import ItemCardSkeleton from "../../components/MinCard/ItemCardSkeleton";
@@ -109,14 +108,15 @@ const EventHallsPage = () => {
     <Layout>
       <style>{customAnimations}</style>
 
+      {/* ✅ التعديل الأول: تغيير ألوان الخلفية والنص الرئيسية */}
       <div className={`min-h-screen ${
-        isDark ? 'bg-gray-900' : 'bg-gray-200'
+        isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
       }`}>
         <div className="max-w-7xl mx-auto px-4 py-16">
-          {/* البحث */}
+          {/* ✅ التعديل الثاني: تغيير خلفية صندوق البحث */}
           <div
             className={`backdrop-blur-sm p-8 rounded-2xl border mb-16 shadow-lg transition-colors duration-300 ${
-              isDark ? "bg-gray-800 border-gray-700" : "bg-gray-300 border-gray-200"
+              isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
             }`}
           >
             <h2
@@ -127,6 +127,7 @@ const EventHallsPage = () => {
               {t("searchTitle")}
             </h2>
             <div className="flex gap-4">
+              {/* ✅ التعديل الثالث: تغيير خلفية حقل الإدخال */}
               <input
                 type="text"
                 placeholder={t("searchPlaceholder")}
@@ -135,7 +136,7 @@ const EventHallsPage = () => {
                 className={`w-full pl-4 pr-4 py-3 rounded-lg border focus:ring-2 focus:outline-none transition-colors duration-300 ${
                   isDark
                     ? "bg-gray-700 text-white border-gray-600 focus:ring-orange-500"
-                    : "bg-gray-400 text-gray-900 border-gray-300 focus:ring-orange-500"
+                    : "bg-gray-100 text-gray-900 border-gray-300 focus:ring-orange-500"
                 }`}
               />
               <button

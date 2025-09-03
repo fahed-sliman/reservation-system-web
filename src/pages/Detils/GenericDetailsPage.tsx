@@ -1,4 +1,3 @@
-// src/pages/Detils/GenericDetailsPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ItemDetailsCard from '../../components/MaxCard/itemDetailsCard';
@@ -41,11 +40,12 @@ const TourStopsSection: React.FC<{ stops: TourStop[] }> = ({ stops }) => {
   const toggleStop = (id: number) => setOpenStopId(openStopId === id ? null : id);
 
   return (
+    // ✅ التعديل الأول: تغيير خلفية قسم محطات الجولة
     <section
       className={`mt-12 p-6 md:p-8 rounded-2xl border transition-colors duration-300 ${
         isDark
           ? 'bg-gray-800 border-gray-700'
-          : 'bg-gray-200 border-gray-200 shadow-sm'
+          : 'bg-white border-gray-200 shadow-sm' // تم التغيير من bg-gray-200 إلى bg-white
       }`}
     >
       <h3
@@ -63,12 +63,13 @@ const TourStopsSection: React.FC<{ stops: TourStop[] }> = ({ stops }) => {
               isDark ? 'border-gray-700' : 'border-gray-200'
             }`}
           >
+            {/* ✅ التعديل الثاني: تغيير خلفية زر كل محطة */}
             <button
               onClick={() => toggleStop(stop.id)}
               className={`w-full flex justify-between items-center p-5 transition-colors ${
                 isDark
                   ? 'bg-gray-700 hover:bg-gray-600'
-                  : 'bg-gray-300 hover:bg-gray-400'
+                  : 'bg-gray-100 hover:bg-gray-200' // تم التغيير من bg-gray-300 إلى درجات أفتح
               }`}
             >
               <div className="flex items-center gap-4">
@@ -111,7 +112,8 @@ const TourStopsSection: React.FC<{ stops: TourStop[] }> = ({ stops }) => {
               >
                 {stop.image && (
                   <img
-                    src={stop.image}
+                    // التأكد من أن الرابط كامل
+                    src={stop.image.startsWith('http') ? stop.image : `http://127.0.0.1:8000/${stop.image}`}
                     alt={language === 'ar' ? stop.ar_title : stop.en_title}
                     className="w-full h-56 object-cover rounded-lg mb-4"
                   />
@@ -187,15 +189,15 @@ const GenericDetailsPage: React.FC = () => {
     if (item && type === 'hotel') navigate(`/hotel-rooms/${item.id}`);
   };
 
-  // حالة عدم العثور على العنصر
   if (!loading && !item) {
     return (
       <Layout>
+        {/* ✅ التعديل الثالث: تغيير خلفية صفحة "غير موجود" */}
         <div
           className={`flex flex-col items-center justify-center min-h-[80vh] transition-colors ${
             isDark
               ? 'bg-gray-900 text-gray-200'
-              : 'bg-gray-200 text-gray-800'
+              : 'bg-gray-50 text-gray-800' // تم التغيير من bg-gray-200 إلى bg-gray-50
           }`}
         >
           <h1 className="text-6xl font-bold text-red-500">{t('notFoundTitle')}</h1>
@@ -207,8 +209,9 @@ const GenericDetailsPage: React.FC = () => {
 
   return (
     <Layout>
+      {/* ✅ التعديل الرابع: تغيير خلفية الصفحة الرئيسية */}
       <div className={`min-h-screen ${
-        isDark ? 'bg-gray-900' : 'bg-gray-200'
+        isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900' // تم التغيير لتتناسب مع باقي الصفحات
       }`}>
         <main className="max-w-6xl mx-auto py-12 px-4">
           <ItemDetailsCard

@@ -14,6 +14,9 @@ interface ReserveRestaurantFormProps {
   onClose: () => void;
 }
 
+// =================================================================
+// ✅  الخطوة 1: تحديث قاموس الترجمة
+// =================================================================
 const translations = {
   ar: {
     reservationDateTime: "تاريخ ووقت الحجز",
@@ -31,6 +34,10 @@ const translations = {
     guestsRequired: "يجب أن يكون عدد الضيوف شخصاً واحداً على الأقل.",
     unauthorized: "يجب تسجيل الدخول أولاً لإجراء الحجز.",
     networkError: "خطأ في الشبكة، تحقق من الاتصال والمحاولة مرة أخرى.",
+    errorBlocked: "أنت محظور حالياً من إجراء الحجوزات.",
+    errorTimeReserved: "هذا المطعم محجوز بالفعل في هذا الوقت.",
+    // رسالة الخطأ الجديدة
+    errorDateInPast: "يجب أن يكون وقت الحجز تاريخاً بعد الآن.",
   },
   en: {
     reservationDateTime: "Reservation Date & Time",
@@ -48,6 +55,10 @@ const translations = {
     guestsRequired: "Number of guests must be at least 1.",
     unauthorized: "Please login first to make a reservation.",
     networkError: "Network error, check your connection and try again.",
+    errorBlocked: "You are currently blocked from making reservations.",
+    errorTimeReserved: "This restaurant is already reserved at this time.",
+    // New error message
+    errorDateInPast: "The reservation time must be a date after now.",
   },
 };
 
@@ -83,10 +94,12 @@ const ReserveRestaurantForm: FC<ReserveRestaurantFormProps> = ({ restaurantId, o
     return Object.keys(newErrors).length === 0;
   };
 
+  // =================================================================
+  // ✅ الخطوة 2: تحديث دالة إرسال النموذج بمنطق الترجمة
+  // =================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // التحقق من تسجيل الدخول
     if (!isAuthenticated || !token) {
       toast.error(t('unauthorized'));
       return;
@@ -99,24 +112,14 @@ const ReserveRestaurantForm: FC<ReserveRestaurantFormProps> = ({ restaurantId, o
     setIsSubmitting(true);
 
     try {
-      // تحضير البيانات للإرسال
-      const completeFormData: ReserveRestaurantRequest = { 
-        ...formData, 
-        restaurantId 
-      };
-
-      console.log('Sending restaurant booking data:', completeFormData);
-
-      // تحضير البيانات للإرسال بنفس هيكل Hotel Form
       const requestData = {
         restaurant_id: restaurantId,
-          reservation_time: formData.reservationDateTime.replace('T', ' ') + ':00', // ✅ الصيغة الصحيحة
+        reservation_time: formData.reservationDateTime.replace('T', ' ') + ':00',
         guests: formData.guests,
         area_type: formData.areaType,
         ...(formData.couponCode && { coupon_code: formData.couponCode }),
       };
 
-      // إرسال الطلب للخادم
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -130,31 +133,51 @@ const ReserveRestaurantForm: FC<ReserveRestaurantFormProps> = ({ restaurantId, o
       const result = await response.json();
 
       if (response.ok) {
-        // نجح الحجز
         toast.success(result.message || t('successMessage'));
         setTimeout(() => {
           onClose();
-          // يمكنك إضافة refresh للصفحة أو إعادة جلب البيانات
-          window.location.reload(); // أو استدعاء دالة لإعادة جلب الحجوزات
+          window.location.reload();
         }, 2000);
       } else {
-        // خطأ من الخادم - نفس معالجة الأخطاء من Hotel Form
+        // --- منطق معالجة الخطأ المترجم ---
         console.error('API Error:', result);
-        let errorMessage = t('errorMessage');
-        if (result.errors) {
-          const firstErrorKey = Object.keys(result.errors)[0];
-          if (firstErrorKey && result.errors[firstErrorKey].length > 0) {
-            errorMessage = result.errors[firstErrorKey][0];
-          }
-        } else if (result.message) {
-          errorMessage = result.message;
+        const apiErrorMessage = result.message || '';
+        
+        const errorMessagesMap: { [key: string]: keyof typeof translations['en'] } = {
+          'You are currently blocked from making reservations.': 'errorBlocked',
+          'This restaurant is already reserved during the selected period.': 'errorTimeReserved',
+          'The reservation time field must be a date after now.': 'errorDateInPast', // ✅ تمت الإضافة هنا
+        };
+
+        const translationKey = errorMessagesMap[apiErrorMessage];
+        let finalErrorMessage: string;
+
+        if (translationKey) {
+            finalErrorMessage = t(translationKey);
+        } else if (apiErrorMessage) {
+            finalErrorMessage = apiErrorMessage;
+        } else if (result.errors) {
+            const firstErrorKey = Object.keys(result.errors)[0];
+            finalErrorMessage = result.errors[firstErrorKey]?.[0] || t('errorMessage');
+        } else {
+            finalErrorMessage = t('errorMessage');
         }
-        toast.error(errorMessage);
+        
+        toast.error(finalErrorMessage);
+
+        if (result.errors) {
+          const flatErrors: { [key: string]: string } = {};
+          for (const key in result.errors) {
+            if (result.errors[key].length > 0) {
+              flatErrors[key] = result.errors[key][0];
+            }
+          }
+          setErrors(flatErrors);
+        }
       }
     } catch (error) {
-      // خطأ في الشبكة - نفس معالجة الأخطاء من Hotel Form
       console.error('Network or unexpected error:', error);
-      toast.error(t('errorMessage'));
+      toast.error(t('networkError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -164,7 +187,6 @@ const ReserveRestaurantForm: FC<ReserveRestaurantFormProps> = ({ restaurantId, o
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: name === 'guests' ? Number(value) : value }));
     
-    // إزالة رسالة الخطأ عند التعديل
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -192,12 +214,12 @@ const ReserveRestaurantForm: FC<ReserveRestaurantFormProps> = ({ restaurantId, o
             name="reservationDateTime" 
             value={formData.reservationDateTime} 
             onChange={handleChange} 
-            className={`${inputClasses} ${errors.reservationDateTime ? 'border-red-500' : ''}`}
+            className={`${inputClasses} ${errors.reservation_time || errors.reservationDateTime ? 'border-red-500' : ''}`}
             style={{ colorScheme: theme }} 
           />
         </div>
-        {errors.reservationDateTime && (
-          <p className="text-red-400 text-sm mt-1">{errors.reservationDateTime}</p>
+        {(errors.reservation_time || errors.reservationDateTime) && (
+          <p className="text-red-400 text-sm mt-1">{errors.reservation_time || errors.reservationDateTime}</p>
         )}
       </div>
 

@@ -4,14 +4,11 @@ import type { ReserveHotelRequest } from '../../../types';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext'; 
-import toast from 'react-hot-toast'; // ✅ Import toast
+import toast from 'react-hot-toast';
 
-interface ReserveHotelFormProps {
-  hotelId: number;
-  roomNumber: number;
-  onClose: () => void;
-}
-
+// =================================================================
+// ✅  الخطوة 1: تحديث قاموس الترجمة
+// =================================================================
 const translations = {
   ar: {
     arrivalDate: "تاريخ الوصول",
@@ -30,6 +27,9 @@ const translations = {
     startDateRequired: "تاريخ بدء الحجز مطلوب.",
     nightsRequired: "يجب حجز ليلة واحدة على الأقل.",
     startDatePast: "تاريخ الوصول يجب أن يكون اليوم أو في المستقبل.",
+    errorBlocked: "أنت محظور حالياً من إجراء الحجوزات.",
+    // رسالة الخطأ الجديدة
+    errorRoomReserved: "هذه الغرفة محجوزة بالفعل خلال الفترة المحددة.",
   },
   en: {
     arrivalDate: "Arrival Date",
@@ -48,8 +48,18 @@ const translations = {
     startDateRequired: "Start date is required.",
     nightsRequired: "You must book at least one night.",
     startDatePast: "Arrival date must be today or in the future.",
+    errorBlocked: "You are currently blocked from making reservations.",
+    // New error message
+    errorRoomReserved: "This room is already reserved during the selected period.",
   },
 };
+
+// واجهة الـ Props يجب تعريفها
+interface ReserveHotelFormProps {
+  hotelId: number;
+  roomNumber: number;
+  onClose: () => void;
+}
 
 const ReserveHotelForm: FC<ReserveHotelFormProps> = ({ hotelId, roomNumber, onClose }) => {
   const { language } = useLanguage();
@@ -72,9 +82,7 @@ const ReserveHotelForm: FC<ReserveHotelFormProps> = ({ hotelId, roomNumber, onCl
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Removed submissionStatus and submissionMessage states
 
-  // الحصول على تاريخ اليوم بصيغة YYYY-MM-DD
   const getTodayDate = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -83,14 +91,12 @@ const ReserveHotelForm: FC<ReserveHotelFormProps> = ({ hotelId, roomNumber, onCl
     return `${year}-${month}-${day}`;
   };
 
-  // تعيين قيمة افتراضية لتاريخ الوصول إذا كانت فارغة، وللتاريخ الأدنى
   useEffect(() => {
     const today = getTodayDate();
     if (!formData.startDate) {
       setFormData(prev => ({ ...prev, startDate: today }));
     }
   }, [formData.startDate]);
-
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -116,12 +122,14 @@ const ReserveHotelForm: FC<ReserveHotelFormProps> = ({ hotelId, roomNumber, onCl
     return Object.keys(newErrors).length === 0;
   };
 
+  // =================================================================
+  // ✅ الخطوة 2: تحديث دالة إرسال النموذج
+  // =================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Removed setSubmissionStatus and setSubmissionMessage
 
     if (!isAuthenticated) {
-      toast.error(t('unauthorizedError')); // ✅ Display error toast
+      toast.error(t('unauthorizedError'));
       return;
     }
 
@@ -151,24 +159,38 @@ const ReserveHotelForm: FC<ReserveHotelFormProps> = ({ hotelId, roomNumber, onCl
         const result = await response.json();
 
         if (response.ok) {
-          toast.success(t('successMessage')); // ✅ Display success toast
+          toast.success(t('successMessage'));
           setTimeout(onClose, 2000);
         } else {
+          // --- منطق معالجة الخطأ المترجم ---
           console.error('API Error:', result);
-          let errorMessage = t('errorMessage');
-          if (result.errors) {
+          const apiErrorMessage = result.message || '';
+
+          // قاموس لربط رسائل الخادم بمفاتيح الترجمة
+          const errorMessagesMap: { [key: string]: keyof typeof translations['en'] } = {
+            'You are currently blocked from making reservations.': 'errorBlocked',
+            'This room is already reserved during the selected period.': 'errorRoomReserved', // ✅ تمت الإضافة هنا
+          };
+
+          const translationKey = errorMessagesMap[apiErrorMessage];
+          let finalErrorMessage = t('errorMessage');
+
+          if (translationKey) {
+            finalErrorMessage = t(translationKey);
+          } else if (apiErrorMessage) {
+            finalErrorMessage = apiErrorMessage;
+          } else if (result.errors) {
             const firstErrorKey = Object.keys(result.errors)[0];
             if (firstErrorKey && result.errors[firstErrorKey].length > 0) {
-              errorMessage = result.errors[firstErrorKey][0];
+              finalErrorMessage = result.errors[firstErrorKey][0];
             }
-          } else if (result.message) {
-            errorMessage = result.message;
           }
-          toast.error(errorMessage); // ✅ Display error toast
+          
+          toast.error(finalErrorMessage);
         }
       } catch (error) {
         console.error('Network or unexpected error:', error);
-        toast.error(t('errorMessage')); // ✅ Display error toast
+        toast.error(t('errorMessage'));
       } finally {
         setIsSubmitting(false);
       }
@@ -235,8 +257,6 @@ const ReserveHotelForm: FC<ReserveHotelFormProps> = ({ hotelId, roomNumber, onCl
 
       <hr className={`!my-8 ${theme === 'dark' ? 'border-gray-700/60' : 'border-gray-200'}`} />
       
-      {/* Removed the conditional rendering for submissionStatus/submissionMessage */}
-
       <button type="submit" disabled={isSubmitting || !isAuthenticated} className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-lg py-4 rounded-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed">
         {isSubmitting ? t('submittingButton') : t('submitButton')}
       </button>

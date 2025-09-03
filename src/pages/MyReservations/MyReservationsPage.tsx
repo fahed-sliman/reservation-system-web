@@ -16,7 +16,9 @@ const API_ENDPOINTS = {
   reservations: 'http://127.0.0.1:8000/api/reservations',
 };
 
-// الترجمة
+// =================================================================
+// ✅  الخطوة 1: تحديث قاموس الترجمة بالكامل
+// =================================================================
 const translations = {
   ar: {
     pageTitle: "حجوزاتي",
@@ -28,11 +30,19 @@ const translations = {
     tabPlaygrounds: "الملاعب",
     tabEventHalls: "القاعات",
     noReservations: "لا توجد حجوزات لعرضها في هذا القسم.",
-    cancelConfirm: "تم إرسال طلب الإلغاء.",
-    cancelSuccess: "تم إلغاء الحجز بنجاح.",
+    cancelConfirm: "جارٍ إرسال طلب الإلغاء...",
+    cancelSuccess: "تم إلغاء الحجز بنجاح.", // رسالة احتياطية
+    cancelSuccessSpecific: "تم إلغاء حجز {{type}} بنجاح.",
+    entityHotel: "الفندق",
+    entityRestaurant: "المطعم",
+    entityTour: "الرحلة",
+    entityPlayground: "الملعب",
+    entityEventHall: "القاعة",
     cancelError: "حدث خطأ أثناء إلغاء الحجز.",
     fetchError: "حدث خطأ أثناء جلب حجوزاتك.",
     unauthorized: "الرجاء تسجيل الدخول لعرض حجوزاتك.",
+    // رسالة الخطأ الجديدة
+    errorBlocked: "أنت محظور حالياً من إجراء أو تعديل الحجوزات.",
   },
   en: {
     pageTitle: "My Reservations",
@@ -45,10 +55,18 @@ const translations = {
     tabEventHalls: "Event Halls",
     noReservations: "No reservations to display in this section.",
     cancelConfirm: "Cancel request sent.",
-    cancelSuccess: "Reservation cancelled successfully.",
+    cancelSuccess: "Reservation cancelled successfully.", // Generic fallback
+    cancelSuccessSpecific: "{{type}} reservation cancelled successfully.",
+    entityHotel: "The hotel",
+    entityRestaurant: "The restaurant",
+    entityTour: "The tour",
+    entityPlayground: "The playground",
+    entityEventHall: "The event hall",
     cancelError: "An error occurred during cancellation.",
     fetchError: "An error occurred while fetching your reservations.",
     unauthorized: "Please log in to view your reservations.",
+    // New error message
+    errorBlocked: "You are currently blocked from making or modifying reservations.",
   },
 };
 
@@ -114,59 +132,88 @@ const MyReservationsPage: React.FC = () => {
     fetchReservations();
   }, [fetchReservations]);
 
-    const handleCancelReservation = async (type: string, id: number) => {
-  if (!id || id === undefined) {
-    toast.error('⚠️ خطأ: معرف الحجز غير موجود');
-    return;
-  }
-
-  if (!isAuthenticated || !token) {
-    toast.error(t('unauthorized'));
-    return;
-  }
-
-  toast.promise(
-    (async () => {
-      const headers = { 
-        Accept: 'application/json', 
-        Authorization: `Bearer ${token}` 
-      };
-
-      const res = await fetch(
-        `${API_ENDPOINTS.reservations}/cancel?type=${type}&id=${id}`, 
-        { headers }
-      );
-      const data = await res.json();
-
-      if (res.ok) {
-        // ✅ نجاح: حدث قائمة الحجوزات
-        setReservations(prev => {
-          if (!prev) return null;
-          const keyMap: Record<string, keyof UserReservationsResponse['data']> = {
-            hotel: 'hotel_reservations',
-            restaurant: 'restaurant_reservations',
-            tour: 'tour_reservations',
-            playground: 'play_ground_reservations',
-            event_hall: 'event_hall_reservations',
-          };
-          const reservationKey = keyMap[type];
-          const updatedList = prev[reservationKey]
-            ?.filter(r => (r.id ?? r.reservation_id) !== id);
-          return { ...prev, [reservationKey]: updatedList };
-        });
-        return data.message || t('cancelSuccess'); // 👈 نعرض رسالة السيرفر أو النص المترجم
-      } else {
-        // ❌ خطأ: نرمي رسالة السيرفر ليعرضها toast
-        throw new Error(data.message || t('cancelError'));
-      }
-    })(),
-    {
-      loading: t('cancelConfirm'),
-      success: (msg) => msg,     // 👈 يعرض النص اللي رجع من promise
-      error:   (err) => err.message, // 👈 يعرض رسالة الخطأ الحقيقية من API
+  // =================================================================
+  // ✅ الخطوة 2: تحديث دالة الإلغاء بالكامل
+  // =================================================================
+  const handleCancelReservation = async (type: string, id: number) => {
+    if (!id || id === undefined) {
+      toast.error('⚠️ Reservation ID is missing');
+      return;
     }
-  );
-};
+
+    if (!isAuthenticated || !token) {
+      toast.error(t('unauthorized'));
+      return;
+    }
+
+    toast.promise(
+      (async () => {
+        const headers = {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`
+        };
+
+        const res = await fetch(
+          `${API_ENDPOINTS.reservations}/cancel?type=${type}&id=${id}`,
+          { headers }
+        );
+        const data = await res.json();
+
+        if (res.ok) {
+          // --- منطق رسالة النجاح المترجمة ---
+          const typeToTranslationKey: Record<string, keyof typeof translations['en']> = {
+            'hotel': 'entityHotel',
+            'restaurant': 'entityRestaurant',
+            'tour': 'entityTour',
+            'playground': 'entityPlayground',
+            'event_hall': 'entityEventHall',
+          };
+          const entityKey = typeToTranslationKey[type];
+          const translatedEntityType = t(entityKey);
+          const successMessage = t('cancelSuccessSpecific').replace('{{type}}', translatedEntityType);
+          
+          // --- تحديث الواجهة ---
+          setReservations(prev => {
+            if (!prev) return null;
+            const keyMap: Record<string, keyof UserReservationsResponse['data']> = {
+              hotel: 'hotel_reservations',
+              restaurant: 'restaurant_reservations',
+              tour: 'tour_reservations',
+              playground: 'play_ground_reservations',
+              event_hall: 'event_hall_reservations',
+            };
+            const reservationKey = keyMap[type];
+            const updatedList = prev[reservationKey]?.filter(r => (r.id ?? r.reservation_id) !== id);
+            return { ...prev, [reservationKey]: updatedList };
+          });
+
+          return successMessage; // إرجاع الرسالة المترجمة
+        } else {
+          // --- منطق رسالة الخطأ المترجمة ---
+          const apiErrorMessage = data.message || '';
+
+          // قاموس لربط رسائل الخادم بمفاتيح الترجمة
+          const errorMessagesMap: { [key: string]: keyof typeof translations['en'] } = {
+            'You are currently blocked from making or modifying reservations.': 'errorBlocked',
+            // يمكن إضافة المزيد من رسائل الخطأ المحددة هنا مستقبلاً
+          };
+          
+          // البحث عن مفتاح الترجمة المطابق لرسالة الخادم
+          const translationKey = errorMessagesMap[apiErrorMessage];
+          
+          // إذا وجدنا ترجمة، نستخدمها. وإلا، نستخدم رسالة الخادم أو رسالة خطأ عامة
+          const finalErrorMessage = translationKey ? t(translationKey) : (apiErrorMessage || t('cancelError'));
+
+          throw new Error(finalErrorMessage);
+        }
+      })(),
+      {
+        loading: t('cancelConfirm'),
+        success: (msg) => msg,
+        error: (err) => err.message,
+      }
+    );
+  };
 
 
   const displayedReservations = useMemo(() => {

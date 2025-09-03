@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, FC } from 'react';
+import React, { useState, useEffect, useCallback, type FC } from 'react';
 import toast from 'react-hot-toast';
-import { FaCalendarAlt, FaClock, FaUsers, FaCreditCard, FaTicketAlt, FaBuilding, FaExclamationTriangle } from 'react-icons/fa'; // ✅ FaExclamationTriangle
+import { FaCalendarAlt, FaClock, FaUsers, FaCreditCard, FaTicketAlt, FaBuilding } from 'react-icons/fa';
 import type { ReserveEventHallRequest } from '../../../types';
 
 // Import necessary contexts
@@ -14,6 +14,9 @@ interface ApiErrorResponse {
   errors?: Record<string, string[]>;
 }
 
+// =================================================================
+// ✅  الخطوة 1: تحديث قاموس الترجمة
+// =================================================================
 const translations = {
   ar: {
     eventType: "نوع المناسبة", wedding: "حفل زفاف", funeral: "مناسبة عزاء",
@@ -21,25 +24,39 @@ const translations = {
     guests: "عدد الضيوف", paymentMethod: "طريقة الدفع", creditCard: "بطاقة ائتمانية",
     cash: "نقداً عند الحضور", couponCode: "كود الكوبون (اختياري)", couponPlaceholder: "أدخل الكود هنا إن وجد",
     submitButton: "تأكيد الحجز", submittingButton: "جاري التأكيد...",
-    successMessage: "تم إرسال طلب الحجز بنجاح!",
     errorMessage: "عذراً، حدث خطأ ما. يرجى التحقق من بياناتك والمحاولة مرة أخرى.",
     networkError: "خطأ في الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.",
     dateRequired: "حقل التاريخ مطلوب.", timeRequired: "حقل الوقت مطلوب.",
     guestsRequired: "يجب أن يكون عدد الضيوف شخصاً واحداً على الأقل.",
-    unauthorized: "يجب تسجيل الدخول أولاً لإجراء الحجز.", // added unauthorized message for consistency
+    unauthorized: "يجب تسجيل الدخول أولاً لإجراء الحجز.",
+    // ✅ تمت إضافة كل الرسائل هنا
+    successReservationCreated: "تم إنشاء الحجز بنجاح.",
+    errorBlocked: "أنت محظور حالياً من إجراء الحجوزات.",
+    errorHallReserved: "القاعة محجوزة بالفعل خلال التاريخ والوقت المحددين.",
+    validationGuestsRequired: "حقل عدد الضيوف مطلوب.",
+    validationDateRequired: "حقل تاريخ الحجز مطلوب.",
+    validationTimeRequired: "حقل وقت الحجز مطلوب.",
+    validationDateAfterToday: "يجب أن يكون تاريخ الحجز بعد اليوم.",
   },
   en: {
-    title: "Event Hall Reservation", eventType: "Event Type", wedding: "Wedding", funeral: "Funeral",
+    eventType: "Event Type", wedding: "Wedding", funeral: "Funeral",
     reservationDate: "Reservation Date", reservationTime: "Reservation Time", timePlaceholder: "e.g., 18:00-22:00",
     guests: "Number of Guests", paymentMethod: "Payment Method", creditCard: "Credit Card",
     cash: "Cash on Arrival", couponCode: "Coupon Code (Optional)", couponPlaceholder: "Enter code here if you have one",
     submitButton: "Confirm Booking", submittingButton: "Confirming...",
-    successMessage: "Event Hall booking Send successfully!",
     errorMessage: "Sorry, an error occurred. Please check your data and try again.",
     networkError: "Server connection error. Please check your internet connection.",
     dateRequired: "Date field is required.", timeRequired: "Time field is required.",
     guestsRequired: "Number of guests must be at least 1.",
     unauthorized: "Please login first to make a reservation.",
+    // ✅ All messages are added here
+    successReservationCreated: "Reservation created successfully.",
+    errorBlocked: "You are currently blocked from making reservations.",
+    errorHallReserved: "The event hall is already reserved during the selected date and time.",
+    validationGuestsRequired: "The guests field is required.",
+    validationDateRequired: "The reservation date field is required.",
+    validationTimeRequired: "The reservation time field is required.",
+    validationDateAfterToday: "The reservation date must be a date after today.",
   },
 };
 
@@ -51,11 +68,9 @@ interface ReserveEventHallFormProps {
 const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onClose }) => {
   const { language } = useLanguage();
   const { theme } = useTheme();
-  const { token } = useAuth();
+  const { token, isAuthenticated } = useAuth();
 
-  // استخدام الترجمة الإنجليزية للواجهة، والترجمة العربية لرسائل الـ toast
   const t = useCallback((key: keyof typeof translations['en']) => translations[language][key] || key, [language]);
-  const tArabic = useCallback((key: keyof typeof translations['ar']) => translations['ar'][key] || key, []); // للوصول لترجمات الـ toast العربية
 
   const [formData, setFormData] = useState<Omit<ReserveEventHallRequest, 'eventHallId'>>({
     eventType: 'wedding', reservationDate: '', reservationTime: '',
@@ -65,7 +80,6 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // منع التمرير عند فتح الفورم
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
@@ -73,56 +87,52 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
     };
   }, []);
   
-  // دالة لتحويل الأخطاء من صيغة API (snake_case) إلى صيغة state (camelCase)
   const mapApiErrors = (apiErrors: Record<string, string[]>): Record<string, string> => {
     const newErrors: Record<string, string> = {};
     for (const key in apiErrors) {
-      // تحويل أسماء الحقول من snake_case إلى camelCase
       const frontendKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
       if (apiErrors[key].length > 0) {
-        newErrors[frontendKey] = apiErrors[key][0]; // أخذ أول خطأ في القائمة
+        newErrors[frontendKey] = apiErrors[key][0];
       }
     }
     return newErrors;
   };
 
-  // دالة للتحقق من صحة المدخلات
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!formData.reservationDate) newErrors.reservationDate = t('dateRequired');
-    // التأكد من أن الوقت ليس فارغًا بعد إزالة المسافات
     if (!formData.reservationTime || !formData.reservationTime.trim()) newErrors.reservationTime = t('timeRequired');
     if (!formData.guests || formData.guests < 1) newErrors.guests = t('guestsRequired');
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0; // إرجاع true إذا لم تكن هناك أخطاء
+    return Object.keys(newErrors).length === 0;
   };
 
+  // =================================================================
+  // ✅ الخطوة 2: تحديث دالة إرسال النموذج بمنطق الترجمة
+  // =================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({}); // مسح الأخطاء القديمة
+    setErrors({});
 
-    // التحقق من تسجيل الدخول
-    if (!token) {
-      toast.error(t('unauthorized')); // رسالة عدم السماح باستخدام الترجمة الإنجليزية
+    if (!isAuthenticated) {
+      toast.error(t('unauthorized'));
       return;
     }
     
-    // التحقق من صحة الفورم قبل الإرسال
     if (!validateForm()) {
       return;
     }
       
-    setIsSubmitting(true); // تفعيل حالة الإرسال
+    setIsSubmitting(true);
     
-    // بناء البيانات المرسلة إلى الـ API
     const payload = {
       event_hall_id: eventHallId,
       event_type: formData.eventType,
       reservation_date: formData.reservationDate,
-      reservation_time: formData.reservationTime, // تأكد من أن هذه الصيغة مقبولة من الـ API
+      reservation_time: formData.reservationTime,
       guests: formData.guests,
       payment_method: formData.paymentMethod,
-      ...(formData.couponCode && { coupon_code: formData.couponCode }), // إضافة الكوبون فقط إذا تم إدخاله
+      ...(formData.couponCode && { coupon_code: formData.couponCode }),
     };
 
     try {
@@ -131,61 +141,67 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`, // إضافة الرمز (token) للمصادقة
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
 
       const result: ApiErrorResponse = await response.json();
 
-      if (response.ok) {
-        // ✅ نجاح: عرض رسالة النجاح باللغة العربية إذا كانت اللغة هي العربية
-        const successMessage = language === 'ar' 
-          ? tArabic('successMessage') // استخدم الترجمة العربية الثابتة
-          : result.message || t('successMessage'); // استخدم رسالة السيرفر أو الترجمة الإنجليزية
+      // قاموس لربط رسائل الخادم بمفاتيح الترجمة (للنجاح والفشل)
+      const messagesMap: { [key: string]: keyof typeof translations['en'] } = {
+        'Reservation created successfully.': 'successReservationCreated',
+        'You are currently blocked from making reservations.': 'errorBlocked',
+        'The event hall is already reserved during the selected date and time.': 'errorHallReserved',
+        'The guests field is required.': 'validationGuestsRequired',
+        'The reservation date field is required.': 'validationDateRequired',
+        'The reservation time field is required.': 'validationTimeRequired',
+        'The reservation date must be a date after today.': 'validationDateAfterToday',
+      };
+      
+      const apiMessage = result.message || '';
+      const translationKey = messagesMap[apiMessage];
+      const translatedMessage = translationKey ? t(translationKey) : apiMessage;
 
-        toast.success(successMessage);
-        setTimeout(onClose, 2500); // إغلاق النموذج بعد 2.5 ثانية
+      if (response.ok) {
+        toast.success(translatedMessage || t('successReservationCreated')); // رسالة افتراضية
+        setTimeout(onClose, 2500);
       } else {
-        // ❌ خطأ من الخادم
         console.error('API Error:', result);
-        let errorMessage = tArabic('errorMessage'); // رسالة خطأ افتراضية عربية
-        if (result.errors) {
-          // محاولة استخراج خطأ محدد من الـ backend
+        let finalErrorMessage = translatedMessage; // استخدم الرسالة المترجمة إن وجدت
+
+        // إذا لم تكن هناك رسالة عامة، تحقق من أخطاء الحقول
+        if (!finalErrorMessage && result.errors) {
           const firstErrorKey = Object.keys(result.errors)[0];
-          if (firstErrorKey && result.errors[firstErrorKey].length > 0) {
-            errorMessage = result.errors[firstErrorKey][0]; // استخدام أول خطأ في القائمة
-          }
-        } else if (result.message) {
-          errorMessage = result.message; // استخدام رسالة عامة من الـ backend
+          const firstErrorMessage = result.errors[firstErrorKey]?.[0];
+          const errorTranslationKey = firstErrorMessage ? messagesMap[firstErrorMessage] : undefined;
+          finalErrorMessage = errorTranslationKey ? t(errorTranslationKey) : firstErrorMessage || t('errorMessage');
+        } else if (!finalErrorMessage) {
+            finalErrorMessage = t('errorMessage'); // رسالة افتراضية أخيرة
         }
-        toast.error(errorMessage); // عرض الخطأ للمستخدم
+
+        toast.error(finalErrorMessage);
+
         if (result.errors) {
-          // تحديث حالة الأخطاء لعرضها بجانب الحقول
           setErrors(mapApiErrors(result.errors));
         }
       }
     } catch (error) {
-      // ❌ خطأ في الشبكة أو خطأ غير متوقع
-      toast.error(tArabic('networkError')); // استخدام رسالة خطأ الشبكة العربية
+      toast.error(t('networkError'));
       console.error("Network or submission error:", error);
     } finally {
-      setIsSubmitting(false); // إيقاف حالة الإرسال
+      setIsSubmitting(false);
     }
   };
 
-  // دالة لمعالجة تغيير قيم الحقول
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    // تحديث state مع تحويل قيمة الضيوف إلى رقم
     setFormData(prev => ({ ...prev, [name]: name === 'guests' ? Number(value) : value }));
-    // إزالة رسالة الخطأ عند تعديل الحقل
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
   
-  // Classes for styling inputs and labels based on theme
   const inputClasses = `w-full text-lg pl-12 pr-4 py-3 rounded-lg border focus:ring-2 focus:outline-none transition-colors duration-300 ${theme === 'dark' ? 'bg-gray-900 text-white border-gray-600 focus:ring-orange-500' : 'bg-gray-100 text-gray-800 border-gray-300 focus:ring-orange-500'}`;
   const labelClasses = `block font-bold mb-2 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`;
 
@@ -194,7 +210,7 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
         <div>
           <label htmlFor="eventType" className={labelClasses}>{t('eventType')}</label>
           <div className="relative">
-            <FaBuilding className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FaBuilding className="absolute left-4 top-12 -translate-y-1/2 text-gray-400" />
             <select 
               id="eventType" 
               name="eventType" 
@@ -220,7 +236,7 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
                 value={formData.reservationDate} 
                 onChange={handleChange} 
                 className={`${inputClasses} ${errors.reservationDate ? 'border-red-500' : ''}`}
-                style={{ colorScheme: theme }} // للتوافق مع الثيم الداكن/الفاتح
+                style={{ colorScheme: theme }}
               />
             </div>
             {errors.reservationDate && <p className="text-red-400 text-sm mt-1">{errors.reservationDate}</p>}
@@ -230,7 +246,7 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
             <div className="relative">
               <FaClock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input 
-                type="text" // استخدام text للسماح بالـ placeholder والتنسيق المخصص
+                type="text"
                 id="reservationTime" 
                 name="reservationTime" 
                 placeholder={t('timePlaceholder')} 
@@ -271,7 +287,7 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
             >
               <option value="credit_card">{t('creditCard')}</option>
               <option value="cash">{t('cash')}</option>
-              <option value="MTN_CASH">MTN Cash</option> {/* يمكن ترجمتها إذا لزم الأمر */}
+              <option value="MTN_CASH">MTN Cash</option>
             </select>
           </div>
           {errors.paymentMethod && <p className="text-red-400 text-sm mt-1">{errors.paymentMethod}</p>}
@@ -298,7 +314,7 @@ const ReserveEventHallForm: FC<ReserveEventHallFormProps> = ({ eventHallId, onCl
         
         <button 
           type="submit" 
-          disabled={isSubmitting || !token} 
+          disabled={isSubmitting || !isAuthenticated} 
           className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-lg py-4 rounded-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed"
         >
           {isSubmitting ? t('submittingButton') : t('submitButton')}

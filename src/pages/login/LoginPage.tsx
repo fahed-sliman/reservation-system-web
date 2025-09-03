@@ -286,7 +286,7 @@ const LoginPage: React.FC = () => {
                 <path d="M10 12a2 2 0 100-4 2 2 0 000 4zm0 1a3 3 0 100-6 3 3 0 000 6z" />
                 <path fillRule="evenodd" d="M0 8a8 8 0 1116 0 8 8 0 01-16 0zm10 10H6a2 2 0 110-4h8a2 2 0 110 4z" clipRule="evenodd" />
               </svg>
-              <span className="font-medium"></span>
+              <span className="font-medium">Mahzooj</span>
             </div>
           </footer>
         </div>

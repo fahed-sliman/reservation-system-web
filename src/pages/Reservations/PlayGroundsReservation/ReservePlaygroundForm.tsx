@@ -1,18 +1,16 @@
 import React, { useState, useEffect, useCallback, FC } from 'react';
 import { FaCalendarAlt, FaClock, FaCreditCard, FaTicketAlt } from 'react-icons/fa';
-import toast from 'react-hot-toast'; // ✅ 1. Import toast for notifications
+import toast from 'react-hot-toast';
 import type { ReservePlayGroundRequest } from '../../../types';
 
 // Contexts
 import { useLanguage } from '../../../context/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
-import { useAuth } from '../../../context/AuthContext'; // ✅ 2. Import useAuth to get the token
+import { useAuth } from '../../../context/AuthContext';
 
-interface ReservePlaygroundFormProps {
-  playGroundId: number;
-  onClose: () => void;
-}
-
+// =================================================================
+// ✅  الخطوة 1: تحديث قاموس الترجمة
+// =================================================================
 const translations = {
   ar: {
     reservationDate: "تاريخ الحجز",
@@ -25,10 +23,16 @@ const translations = {
     couponPlaceholder: "أدخل الكود هنا إن وجد",
     submitButton: "تأكيد الحجز",
     submittingButton: "جاري التأكيد...",
-    successMessage: "تم إرسال طلب حجز الملعب بنجاح!",
     errorMessage: "عذراً، حدث خطأ ما. يرجى التحقق من بياناتك والمحاولة مرة أخرى.",
     dateRequired: "حقل التاريخ مطلوب.",
     timeRequired: "حقل الوقت مطلوب.",
+    // ✅ تمت إضافة كل الرسائل هنا
+    successReservationCreated: "تم إنشاء الحجز بنجاح.",
+    unauthorized: "الرجاء تسجيل الدخول لإتمام الحجز.",
+    networkError: "خطأ في الاتصال بالخادم.",
+    errorBlocked: "أنت محظور حالياً من إجراء الحجوزات.",
+    errorTimeSlotBooked: "عفواً، هذا الوقت محجوز بالفعل.",
+    validationDateAfterToday: "يجب أن يكون تاريخ الحجز بعد اليوم.",
   },
   en: {
     reservationDate: "Reservation Date",
@@ -41,17 +45,28 @@ const translations = {
     couponPlaceholder: "Enter code here if you have one",
     submitButton: "Confirm Booking",
     submittingButton: "Confirming...",
-    successMessage: "Playground booking request sent successfully!",
     errorMessage: "Sorry, an error occurred. Please check your data and try again.",
     dateRequired: "Date field is required.",
     timeRequired: "Time field is required.",
+    // ✅ All messages are added here
+    successReservationCreated: "Reservation created successfully.",
+    unauthorized: "Please log in to complete the booking.",
+    networkError: "Network connection error.",
+    errorBlocked: "You are currently blocked from making reservations.",
+    errorTimeSlotBooked: "Sorry, this time slot is already booked.",
+    validationDateAfterToday: "The reservation date must be a date after today.",
   },
 };
+
+interface ReservePlaygroundFormProps {
+  playGroundId: number;
+  onClose: () => void;
+}
 
 const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, onClose }) => {
   const { language } = useLanguage();
   const { theme } = useTheme();
-  const { token } = useAuth(); // ✅ 3. Get the authentication token from the context
+  const { token, isAuthenticated } = useAuth(); // استخدام isAuthenticated
 
   const t = useCallback((key: keyof typeof translations['en']) => translations[language][key] || key, [language]);
   
@@ -64,9 +79,6 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // ❌ The 'submissionStatus' and 'submissionMessage' states are no longer needed.
-  // We will use react-hot-toast instead.
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -83,22 +95,30 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ 4. Updated handleSubmit function to call the API
+  // =================================================================
+  // ✅ الخطوة 2: تحديث دالة إرسال النموذج بمنطق الترجمة
+  // =================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    if (!isAuthenticated) {
+        toast.error(t('unauthorized'));
+        return;
+    }
+
     if (!validateForm()) {
       return;
     }
 
     setIsSubmitting(true);
     
-    // Prepare the data with snake_case keys for the Laravel API
     const apiData = {
       play_ground_id: playGroundId,
       reservation_date: formData.reservationDate,
       reservation_time: formData.reservationTime,
       payment_method: formData.paymentMethod,
-      coupon_code: formData.couponCode || undefined, // Send undefined if empty
+      coupon_code: formData.couponCode || undefined,
     };
 
     try {
@@ -107,31 +127,55 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`, // Include the token for authentication
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(apiData),
       });
 
       const result = await response.json();
-
-      if (!response.ok) {
-        // If the API returns an error (e.g., 422 Validation Error)
-        const errorMessage = result.message || t('errorMessage');
-        toast.error(errorMessage);
-        if (result.errors) {
-          // Optional: Display specific validation errors from the backend
-          setErrors(result.errors);
-        }
-        return; // Stop execution on error
-      }
       
-      // On success
-      toast.success(t('successMessage'));
-      setTimeout(onClose, 2000); // Close the form after 2 seconds
+      const messagesMap: { [key: string]: keyof typeof translations['en'] } = {
+          'Reservation created successfully.': 'successReservationCreated',
+          'You are currently blocked from making reservations.': 'errorBlocked',
+          'Sorry, this time slot is already booked.': 'errorTimeSlotBooked',
+          'The reservation date must be a date after today.': 'validationDateAfterToday',
+      };
+      
+      const apiMessage = result.message || '';
+      const translationKey = messagesMap[apiMessage];
+      const translatedMessage = translationKey ? t(translationKey) : apiMessage;
 
+      if (response.ok) {
+        toast.success(translatedMessage || t('successReservationCreated'));
+        setTimeout(onClose, 2000);
+      } else {
+        console.error('API Error:', result);
+        let finalErrorMessage = translatedMessage;
+
+        if (!finalErrorMessage && result.errors) {
+            const firstErrorKey = Object.keys(result.errors)[0];
+            const firstErrorMessage = result.errors[firstErrorKey]?.[0];
+            const errorTranslationKey = firstErrorMessage ? messagesMap[firstErrorMessage] : undefined;
+            finalErrorMessage = errorTranslationKey ? t(errorTranslationKey) : firstErrorMessage || t('errorMessage');
+        } else if (!finalErrorMessage) {
+            finalErrorMessage = t('errorMessage');
+        }
+        
+        toast.error(finalErrorMessage);
+
+        if (result.errors) {
+            const flatErrors: Record<string, string> = {};
+            for (const key in result.errors) {
+                if (result.errors[key].length > 0) {
+                    flatErrors[key] = result.errors[key][0];
+                }
+            }
+            setErrors(flatErrors);
+        }
+      }
     } catch (error) {
       console.error('Submission failed:', error);
-      toast.error(t('errorMessage')); // Show a generic error for network issues etc.
+      toast.error(t('networkError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -140,7 +184,6 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear the error for a field when the user starts typing in it
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -163,7 +206,7 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
             <FaCalendarAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="date" id="reservationDate" name="reservationDate" value={formData.reservationDate} onChange={handleChange} className={inputClasses} style={{ colorScheme: theme }} />
           </div>
-          {errors.reservationDate && <p className="text-red-400 text-sm mt-1">{errors.reservationDate}</p>}
+          {errors.reservation_date && <p className="text-red-400 text-sm mt-1">{errors.reservation_date}</p>}
         </div>
         <div>
           <label htmlFor="reservationTime" className={labelClasses}>{t('reservationTime')}</label>
@@ -171,7 +214,7 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
             <FaClock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="text" id="reservationTime" name="reservationTime" placeholder={t('timePlaceholder')} value={formData.reservationTime} onChange={handleChange} className={inputClasses} />
           </div>
-          {errors.reservationTime && <p className="text-red-400 text-sm mt-1">{errors.reservationTime}</p>}
+          {errors.reservation_time && <p className="text-red-400 text-sm mt-1">{errors.reservation_time}</p>}
         </div>
       </div>
 
@@ -185,7 +228,7 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
             <option value="MTN_CASH">MTN Cash</option>
           </select>
         </div>
-        {errors.paymentMethod && <p className="text-red-400 text-sm mt-1">{errors.paymentMethod}</p>}
+        {errors.payment_method && <p className="text-red-400 text-sm mt-1">{errors.payment_method}</p>}
       </div>
 
       <div>
@@ -194,13 +237,12 @@ const ReservePlaygroundForm: FC<ReservePlaygroundFormProps> = ({ playGroundId, o
           <FaTicketAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" id="couponCode" name="couponCode" placeholder={t('couponPlaceholder')} value={formData.couponCode ?? ''} onChange={handleChange} className={inputClasses} />
         </div>
+        {errors.coupon_code && <p className="text-red-400 text-sm mt-1">{errors.coupon_code}</p>}
       </div>
 
       <hr className={`!my-8 ${theme === 'dark' ? 'border-gray-700/60' : 'border-gray-200'}`} />
 
-      {/* ❌ The success/error message div has been removed. Toasts will be used instead. */}
-
-      <button type="submit" disabled={isSubmitting} className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-lg py-4 rounded-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed">
+      <button type="submit" disabled={isSubmitting || !isAuthenticated} className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-lg py-4 rounded-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed">
         {isSubmitting ? t('submittingButton') : t('submitButton')}
       </button>
     </form>

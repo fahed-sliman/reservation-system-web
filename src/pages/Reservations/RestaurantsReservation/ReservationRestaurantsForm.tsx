@@ -1,139 +1,298 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { FaUtensils, FaClock, FaUsers, FaMapMarkerAlt } from 'react-icons/fa';
-import type { RestaurantReservation, Restaurant } from '../../../types';
-import InfoRow from '../../../components/Reservation/infoRow';
-import StatusBadge from '../../../components/Reservation/StatusBadge';
-
+import React, { useState, useEffect, useCallback, FC } from 'react';
+import { FaCalendarAlt, FaUsers, FaBuilding, FaTicketAlt } from 'react-icons/fa';
+import type { ReserveRestaurantRequest } from '../../../types';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
-import { apiService } from '../../../services/apiService';
+import { useAuth } from '../../../context/AuthContext';
+import { toast } from 'react-hot-toast';
 
+// API Endpoint
+const API_ENDPOINT = 'http://127.0.0.1:8000/api/restaurants/reserve';
+
+interface ReserveRestaurantFormProps {
+  restaurantId: number;
+  onClose: () => void;
+}
+
+// =================================================================
+// ✅  الخطوة 1: تحديث قاموس الترجمة
+// =================================================================
 const translations = {
   ar: {
-    title: "حجز مطعم",
-    dateTime: "التاريخ والوقت",
+    reservationDateTime: "تاريخ ووقت الحجز",
     guests: "عدد الضيوف",
-    seatingArea: "منطقة الجلوس",
+    seatingArea: "مكان الجلوس",
     indoorHall: "صالة داخلية",
     outdoorTerrace: "تراس خارجي",
-    notSpecified: "غير محدد",
-    cancelBooking: "إلغاء الحجز",
-    location: "الموقع",
+    couponCode: "كود الكوبون (اختياري)",
+    couponPlaceholder: "أدخل الكود هنا إن وجد",
+    submitButton: "تأكيد الحجز",
+    submittingButton: "جاري التأكيد...",
+    successMessage: "تم إرسال طلب حجز الطاولة بنجاح!",
+    errorMessage: "عذراً، حدث خطأ أثناء إرسال الحجز. يرجى المحاولة مرة أخرى.",
+    dateTimeRequired: "حقل تاريخ ووقت الحجز مطلوب.",
+    guestsRequired: "يجب أن يكون عدد الضيوف شخصاً واحداً على الأقل.",
+    unauthorized: "يجب تسجيل الدخول أولاً لإجراء الحجز.",
+    networkError: "خطأ في الشبكة، تحقق من الاتصال والمحاولة مرة أخرى.",
+    errorBlocked: "أنت محظور حالياً من إجراء الحجوزات.",
+    errorTimeReserved: "هذا المطعم محجوز بالفعل في هذا الوقت.",
+    // رسالة الخطأ الجديدة
+    errorDateInPast: "يجب أن يكون وقت الحجز تاريخاً بعد الآن.",
   },
   en: {
-    title: "Restaurant Reservation",
-    dateTime: "Date & Time",
-    guests: "Guests",
+    reservationDateTime: "Reservation Date & Time",
+    guests: "Number of Guests",
     seatingArea: "Seating Area",
     indoorHall: "Indoor Hall",
     outdoorTerrace: "Outdoor Terrace",
-    notSpecified: "Not Specified",
-    cancelBooking: "Cancel Booking",
-    location: "Location",
+    couponCode: "Coupon Code (Optional)",
+    couponPlaceholder: "Enter code here if you have one",
+    submitButton: "Confirm Booking",
+    submittingButton: "Confirming...",
+    successMessage: "Table reservation request sent successfully!",
+    errorMessage: "Sorry, an error occurred while sending the booking. Please try again.",
+    dateTimeRequired: "Date and time field is required.",
+    guestsRequired: "Number of guests must be at least 1.",
+    unauthorized: "Please login first to make a reservation.",
+    networkError: "Network error, check your connection and try again.",
+    errorBlocked: "You are currently blocked from making reservations.",
+    errorTimeReserved: "This restaurant is already reserved at this time.",
+    // New error message
+    errorDateInPast: "The reservation time must be a date after now.",
   },
 };
 
-interface Props {
-  reservation: RestaurantReservation;
-  onCancel: (id: number) => void;
-}
-
-const RestaurantReservationCard: React.FC<Props> = ({ reservation, onCancel }) => {
+const ReserveRestaurantForm: FC<ReserveRestaurantFormProps> = ({ restaurantId, onClose }) => {
   const { language } = useLanguage();
   const { theme } = useTheme();
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const { token, isAuthenticated } = useAuth();
 
-  const t = useCallback(
-    (key: keyof typeof translations['en']) => translations[language][key] || key,
-    [language]
-  );
+  const t = useCallback((key: keyof typeof translations['en']) => translations[language][key] || key, [language]);
+  
+  const [formData, setFormData] = useState<Omit<ReserveRestaurantRequest, 'restaurantId'>>({
+    reservationDateTime: '',
+    guests: 1,
+    areaType: 'indoor_hall',
+    couponCode: '',
+  });
 
-  const canCancel = reservation.status === 'confirmed';
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ====== معالجة التاريخ والوقت ======
-  const reservationDateTime = new Date(reservation.reservation_time.replace(' ', 'T'));
-  const date = reservationDateTime.toLocaleDateString(
-    language === 'ar' ? 'ar-EG' : 'en-US',
-    { year: 'numeric', month: 'long', day: 'numeric' }
-  );
-  const time = reservationDateTime.toLocaleTimeString(
-    language === 'ar' ? 'ar-EG' : 'en-US',
-    { hour: '2-digit', minute: '2-digit', hour12: true }
-  );
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
 
-  const getAreaText = (area: 'indoor_hall' | 'outdoor_terrace' | null): string => {
-    if (area === 'indoor_hall') return t('indoorHall');
-    if (area === 'outdoor_terrace') return t('outdoorTerrace');
-    return t('notSpecified');
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.reservationDateTime) newErrors.reservationDateTime = t('dateTimeRequired');
+    if (!formData.guests || formData.guests < 1) newErrors.guests = t('guestsRequired');
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  // ====== جلب بيانات المطعم إذا الاسم غير موجود ======
-  useEffect(() => {
-    async function fetchRestaurant() {
-      try {
-        const data = await apiService.getItem('restaurant', reservation.restaurant_id);
-        setRestaurant(data);
-      } catch (err) {
-        console.error('Failed to fetch restaurant:', err);
+  // =================================================================
+  // ✅ الخطوة 2: تحديث دالة إرسال النموذج بمنطق الترجمة
+  // =================================================================
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!isAuthenticated || !token) {
+      toast.error(t('unauthorized'));
+      return;
+    }
+    
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const requestData = {
+        restaurant_id: restaurantId,
+        reservation_time: formData.reservationDateTime.replace('T', ' ') + ':00',
+        guests: formData.guests,
+        area_type: formData.areaType,
+        ...(formData.couponCode && { coupon_code: formData.couponCode }),
+      };
+
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast.success(result.message || t('successMessage'));
+        setTimeout(() => {
+          onClose();
+          window.location.reload();
+        }, 2000);
+      } else {
+        // --- منطق معالجة الخطأ المترجم ---
+        console.error('API Error:', result);
+        const apiErrorMessage = result.message || '';
+        
+        const errorMessagesMap: { [key: string]: keyof typeof translations['en'] } = {
+          'You are currently blocked from making reservations.': 'errorBlocked',
+          'This restaurant is already reserved during the selected period.': 'errorTimeReserved',
+          'The reservation time field must be a date after now.': 'errorDateInPast', // ✅ تمت الإضافة هنا
+        };
+
+        const translationKey = errorMessagesMap[apiErrorMessage];
+        let finalErrorMessage: string;
+
+        if (translationKey) {
+            finalErrorMessage = t(translationKey);
+        } else if (apiErrorMessage) {
+            finalErrorMessage = apiErrorMessage;
+        } else if (result.errors) {
+            const firstErrorKey = Object.keys(result.errors)[0];
+            finalErrorMessage = result.errors[firstErrorKey]?.[0] || t('errorMessage');
+        } else {
+            finalErrorMessage = t('errorMessage');
+        }
+        
+        toast.error(finalErrorMessage);
+
+        if (result.errors) {
+          const flatErrors: { [key: string]: string } = {};
+          for (const key in result.errors) {
+            if (result.errors[key].length > 0) {
+              flatErrors[key] = result.errors[key][0];
+            }
+          }
+          setErrors(flatErrors);
+        }
       }
+    } catch (error) {
+      console.error('Network or unexpected error:', error);
+      toast.error(t('networkError'));
+    } finally {
+      setIsSubmitting(false);
     }
-    if (!reservation.restaurant_ar_title && !reservation.restaurant_en_title) {
-      fetchRestaurant();
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: name === 'guests' ? Number(value) : value }));
+    
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
-  }, [reservation.restaurant_id, reservation.restaurant_ar_title, reservation.restaurant_en_title]);
+  };
+
+  const inputClasses = `w-full text-lg pl-12 pr-4 py-3 rounded-lg border focus:ring-2 focus:outline-none transition-colors duration-300 ${
+    theme === 'dark'
+      ? 'bg-gray-900 text-white border-gray-600 focus:ring-orange-500'
+      : 'bg-gray-100 text-gray-800 border-gray-300 focus:ring-orange-500'
+  }`;
+  
+  const labelClasses = `block font-bold mb-2 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`;
 
   return (
-    <div
-      className={`border rounded-xl p-5 transition-all hover:shadow-xl ${
-        theme === 'dark'
-          ? 'bg-gray-800/50 border-gray-700 hover:border-orange-500/50'
-          : 'bg-white border-gray-200 hover:border-orange-300'
-      }`}
-    >
-      {/* ====== العنوان والحالة ====== */}
-      <div
-        className={`flex justify-between items-start mb-4 pb-4 border-b ${
-          theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
-        }`}
-      >
-        <h3
-          className={`text-lg md:text-xl font-bold flex items-center gap-3 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}
-        >
-          <FaUtensils />
-          {restaurant?.[language === 'ar' ? 'ar_title' : 'en_title'] 
-            ?? reservation.restaurant_ar_title 
-            ?? reservation.restaurant_en_title 
-            ?? t('title')}
-        </h3>
-        <StatusBadge status={reservation.status} />
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <label htmlFor="reservationDateTime" className={labelClasses}>
+          {t('reservationDateTime')}
+        </label>
+        <div className="relative">
+          <FaCalendarAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input 
+            type="datetime-local" 
+            id="reservationDateTime" 
+            name="reservationDateTime" 
+            value={formData.reservationDateTime} 
+            onChange={handleChange} 
+            className={`${inputClasses} ${errors.reservation_time || errors.reservationDateTime ? 'border-red-500' : ''}`}
+            style={{ colorScheme: theme }} 
+          />
+        </div>
+        {(errors.reservation_time || errors.reservationDateTime) && (
+          <p className="text-red-400 text-sm mt-1">{errors.reservation_time || errors.reservationDateTime}</p>
+        )}
       </div>
 
-      {/* ====== التفاصيل ====== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-2">
-        <InfoRow icon={<FaClock />} label={t('dateTime')} value={`${date} - ${time}`} />
-        <InfoRow icon={<FaUsers />} label={t('guests')} value={reservation.guests} />
-        {reservation.area_type && <InfoRow icon={<FaMapMarkerAlt />} label={t('seatingArea')} value={getAreaText(reservation.area_type)} />}
-        {restaurant && <InfoRow icon={<FaMapMarkerAlt />} label={t('location')} value={restaurant?.[language === 'ar' ? 'ar_location' : 'en_location'] ?? '–'} />}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label htmlFor="guests" className={labelClasses}>
+            {t('guests')}
+          </label>
+          <div className="relative">
+            <FaUsers className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="number" 
+              id="guests" 
+              name="guests" 
+              min="1" 
+              value={formData.guests} 
+              onChange={handleChange} 
+              className={`${inputClasses} ${errors.guests ? 'border-red-500' : ''}`}
+            />
+          </div>
+          {errors.guests && (
+            <p className="text-red-400 text-sm mt-1">{errors.guests}</p>
+          )}
+        </div>
+        <div>
+          <label htmlFor="areaType" className={labelClasses}>
+            {t('seatingArea')}
+          </label>
+          <div className="relative">
+            <FaBuilding className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <select 
+              id="areaType" 
+              name="areaType" 
+              value={formData.areaType} 
+              onChange={handleChange} 
+              className={inputClasses}
+            >
+              <option value="indoor_hall">{t('indoorHall')}</option>
+              <option value="outdoor_terrace">{t('outdoorTerrace')}</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* ====== زر الإلغاء ====== */}
-      <div
-        className={`mt-5 pt-5 border-t text-right ${
-          theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
-        }`}
-      >
-        <button
-          onClick={() => onCancel(reservation.id)}
-          disabled={!canCancel}
-          className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg transition hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {t('cancelBooking')}
-        </button>
+      <div>
+        <label htmlFor="couponCode" className={`block font-bold mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+          {t('couponCode')}
+        </label>
+        <div className="relative">
+          <FaTicketAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input 
+            type="text" 
+            id="couponCode" 
+            name="couponCode" 
+            placeholder={t('couponPlaceholder')} 
+            value={formData.couponCode ?? ''} 
+            onChange={handleChange} 
+            className={inputClasses} 
+          />
+        </div>
       </div>
-    </div>
+
+      <hr className={`!my-8 ${theme === 'dark' ? 'border-gray-700/60' : 'border-gray-200'}`} />
+      
+      <button 
+        type="submit" 
+        disabled={isSubmitting || !isAuthenticated} 
+        className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-lg py-4 rounded-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none disabled:cursor-not-allowed"
+      >
+        {isSubmitting ? t('submittingButton') : t('submitButton')}
+      </button>
+    </form>
   );
 };
 
-export default RestaurantReservationCard;
+export default ReserveRestaurantForm;

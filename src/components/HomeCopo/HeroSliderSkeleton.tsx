@@ -6,24 +6,27 @@ const HeroSliderSkeleton: React.FC = () => {
   const isDark = theme === "dark";
 
   return (
+    // ✅ التعديل الأول: استخدام خلفية أفتح قليلاً لتتناسب مع الصفحات الأخرى
     <div
       className={`relative h-screen overflow-hidden ${
-        isDark ? "bg-gray-900" : "bg-gray-200"
+        isDark ? "bg-gray-900" : "bg-gray-100" // تم التغيير من bg-gray-200
       }`}
     >
       {/* Background Skeleton */}
+      {/* ✅ التعديل الثاني: استخدام درجة أفتح لخلفية الصورة */}
       <div
         className={`absolute inset-0 animate-pulse ${
-          isDark ? "bg-gray-800" : "bg-gray-300"
+          isDark ? "bg-gray-800" : "bg-gray-200" // تم التغيير من bg-gray-300
         }`}
       ></div>
 
       {/* Content Skeleton */}
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 space-y-8">
         {/* Main Title Skeleton */}
+        {/* ✅ التعديل الثالث: استخدام درجة أفتح لكل عناصر المحتوى */}
         <div
           className={`h-20 md:h-32 rounded-lg w-96 md:w-[600px] animate-pulse ${
-            isDark ? "bg-gray-700" : "bg-gray-400"
+            isDark ? "bg-gray-700" : "bg-gray-300" // تم التغيير من bg-gray-400
           }`}
         ></div>
 
@@ -31,17 +34,17 @@ const HeroSliderSkeleton: React.FC = () => {
         <div className="space-y-3 max-w-4xl w-full">
           <div
             className={`h-6 rounded w-full animate-pulse ${
-              isDark ? "bg-gray-700" : "bg-gray-400"
+              isDark ? "bg-gray-700" : "bg-gray-300" // تم التغيير من bg-gray-400
             }`}
           ></div>
           <div
             className={`h-6 rounded w-5/6 mx-auto animate-pulse ${
-              isDark ? "bg-gray-700" : "bg-gray-400"
+              isDark ? "bg-gray-700" : "bg-gray-300" // تم التغيير من bg-gray-400
             }`}
           ></div>
           <div
             className={`h-6 rounded w-4/6 mx-auto animate-pulse ${
-              isDark ? "bg-gray-700" : "bg-gray-400"
+              isDark ? "bg-gray-700" : "bg-gray-300" // تم التغيير من bg-gray-400
             }`}
           ></div>
         </div>
@@ -49,7 +52,7 @@ const HeroSliderSkeleton: React.FC = () => {
         {/* Button Skeleton */}
         <div
           className={`h-14 rounded-full w-64 animate-pulse ${
-            isDark ? "bg-gray-700" : "bg-gray-400"
+            isDark ? "bg-gray-700" : "bg-gray-300" // تم التغيير من bg-gray-400
           }`}
         ></div>
       </div>
@@ -60,7 +63,7 @@ const HeroSliderSkeleton: React.FC = () => {
           <div
             key={index}
             className={`w-3 h-3 rounded-full animate-pulse ${
-              isDark ? "bg-gray-600" : "bg-gray-400"
+              isDark ? "bg-gray-600" : "bg-gray-300" // تم التغيير من bg-gray-400
             }`}
           ></div>
         ))}
